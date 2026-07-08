@@ -15,10 +15,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * and can be overridden via env vars (e.g. {@code EDSS_FEATURES_AUTH_TWO_FACTOR=false}).</p>
  */
 @ConfigurationProperties(prefix = "edss.features")
-public record FeaturesProperties(Storage storage, Auth auth, Integrations integrations) {
+public record FeaturesProperties(
+        Storage storage, Auth auth, Observability observability, Integrations integrations) {
 
     public record Storage(
-            /** Provider label. Drives connection defaults + docs only. */
+            /** {@code supabase} (current) or {@code self-hosted} (future). Driver is
+             * always Postgres; the label flows into logs + metrics. Real switching
+             * happens by pointing {@code DB_URL} at the correct host. */
             String dbProvider,
             /** Flip in-memory stores → Redis-backed. Enable when scaling out. */
             boolean redisEnabled,
@@ -35,14 +38,11 @@ public record FeaturesProperties(Storage storage, Auth auth, Integrations integr
             /** Rotate refresh tokens on every refresh call. */
             boolean sessionRotation) {}
 
-    public record Integrations(Convex convex, Mail mail) {
+    public record Observability(
+            /** Ship uncaught exceptions to Sentry. Requires SENTRY_DSN when true. */
+            boolean sentryEnabled) {}
 
-        public record Convex(
-                /** Convex.dev client active. NOT a primary data store — only for
-                 * separate document projections; primary DB stays Postgres. */
-                boolean enabled,
-                String url,
-                String deployKey) {}
+    public record Integrations(Mail mail) {
 
         public record Mail(
                 /** mailhog | smtp | ses | sendgrid. Only mailhog / smtp wired in v1. */

@@ -5,9 +5,20 @@ Business Operations Platform backend — Spring Boot 3 modular monolith followin
 ## Stack
 
 - Java 17, Spring Boot 3.2, Spring Modulith 1.1
-- PostgreSQL 14 (schema-per-module), Redis 7
+- **Database:** PostgreSQL. Two supported providers, both same driver + schema:
+  - **Supabase** (managed, current) — set `DB_URL` to your Supabase connection string.
+  - **Self-hosted** (future) — set `DB_URL` to your own Postgres.
+- Redis 7 (optional, feature-flagged — off day-1, on when scaling)
 - Flyway migrations, JJWT for JWT, BCrypt (strength 12) for passwords, TOTP (RFC 6238) for 2FA
 - Springdoc OpenAPI
+- **Sentry** for error reporting (feature-flagged, off by default)
+
+## Feature flags
+
+All toggles live under `edss.features.*` in `application.yml`. See
+`src/main/java/com/edss/shared/config/FeaturesProperties.java` for the full
+surface. Groups: `storage`, `auth`, `observability`, `integrations`. Override
+any flag via env var (e.g. `SENTRY_ENABLED=true`).
 
 ## Local run
 

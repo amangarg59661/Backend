@@ -71,9 +71,9 @@ edss:
   # ---------------------------------------------------------------------------
   features:
     storage:
-      # local | supabase | neon. Selector is documentation-only — the driver
-      # is always Postgres. Set DB_URL to match the provider.
-      db-provider: ${DB_PROVIDER:local}
+      # supabase (managed) or self-hosted (own Postgres). Documentation tag;
+      # actual switching is a DB_URL change since both are Postgres.
+      db-provider: ${DB_PROVIDER:supabase}
       # In-memory (false) vs Redis (true) for refresh tokens, 2FA challenges,
       # rate-limit buckets. Enable when scaling to multiple instances.
       redis-enabled: ${REDIS_ENABLED:false}
@@ -90,16 +90,28 @@ edss:
       password-reset: ${AUTH_PASSWORD_RESET:true}
       # Rotate refresh token on every /auth/refresh call. Safer default.
       session-rotation: ${AUTH_SESSION_ROTATION:true}
+    observability:
+      # Ship uncaught exceptions and Logback ERROR events to Sentry. Requires
+      # SENTRY_DSN when true. See sentry: block below for tuning.
+      sentry-enabled: ${SENTRY_ENABLED:false}
     integrations:
-      convex:
-        # Convex.dev projection store. Not a primary data source — Postgres
-        # remains authoritative. Wired later; scaffold only for now.
-        enabled: ${CONVEX_ENABLED:false}
-        url: ${CONVEX_URL:}
-        deploy-key: ${CONVEX_DEPLOY_KEY:}
       mail:
         # mailhog | smtp | ses | sendgrid. Only mailhog / smtp wired in v1.
         provider: ${MAIL_PROVIDER:mailhog}
+
+# Sentry starter binds under its own namespace. Both blocks share
+# SENTRY_ENABLED so they can never disagree.
+sentry:
+  enabled: ${SENTRY_ENABLED:false}
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:dev}
+  release: ${SENTRY_RELEASE:self-backend@0.1.0-SNAPSHOT}
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:0.1}
+  send-default-pii: false
+  logging:
+    minimum-event-level: error
+    minimum-breadcrumb-level: info
+  in-app-includes: com.edss
 
   security:
     jwt:

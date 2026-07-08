@@ -1,11 +1,13 @@
 package com.edss.shared.api;
 
+import io.sentry.Sentry;
 import jakarta.validation.ConstraintViolationException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
@@ -56,6 +58,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorBody> handleUnexpected(Exception ex) {
+        String requestId = MDC.get("requestId");
+        Sentry.withScope(
+                scope -> {
+                    if (requestId != null) {
+                        scope.setTag("request_id", requestId);
+                    }
+                    Sentry.captureException(ex);
+                });
         log.error("Unhandled exception", ex);
         return respond(ApiErrorCode.SERVER_ERROR, "Internal server error.", null);
     }

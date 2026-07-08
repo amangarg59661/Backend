@@ -5,7 +5,7 @@ spring:
 edss:
   features:
     storage:
-      db-provider: local
+      db-provider: self-hosted
       redis-enabled: false
       outbox-relay: true
     auth:
@@ -13,14 +13,16 @@ edss:
       rate-limit: true
       password-reset: true
       session-rotation: true
+    observability:
+      sentry-enabled: false
     integrations:
-      convex:
-        enabled: false
-        url: ""
-        deploy-key: ""
       mail:
         provider: mailhog
   security:
+
+sentry:
+  enabled: false
+  dsn: ""
     jwt:
       secret: test-secret-that-is-definitely-at-least-32-bytes-long-!!
       access-ttl: PT15M
