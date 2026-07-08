@@ -34,6 +34,8 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      repositories:
+        enabled: false
 
   mail:
     host: ${MAIL_HOST:localhost}
@@ -63,6 +65,12 @@ management:
       show-details: never
 
 edss:
+  redis:
+    # Day-1: false → in-memory refresh tokens, 2FA challenges, rate-limit
+    # buckets. Single-node, state lost on restart.
+    # Scale-out: true → Redis-backed. Shared across instances, survives
+    # restart. Requires REDIS_HOST/PORT to point at a real cluster.
+    enabled: ${REDIS_ENABLED:false}
   security:
     jwt:
       secret: ${JWT_SECRET}

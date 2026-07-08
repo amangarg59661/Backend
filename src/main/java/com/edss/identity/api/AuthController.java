@@ -57,13 +57,13 @@ public class AuthController {
     @PostMapping("/forgot-password")
     public OkResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
         passwordReset.requestReset(req.email());
-        return OkResponse.ok();
+        return OkResponse.instance();
     }
 
     @PostMapping("/reset-password")
     public OkResponse resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
         passwordReset.resetPassword(req.token(), req.newPassword());
-        return OkResponse.ok();
+        return OkResponse.instance();
     }
 
     private static String clientIp(HttpServletRequest request) {

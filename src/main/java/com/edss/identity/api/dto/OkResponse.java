@@ -2,7 +2,9 @@ package com.edss.identity.api.dto;
 
 public record OkResponse(boolean ok) {
 
-    public static OkResponse ok() {
-        return new OkResponse(true);
+    private static final OkResponse OK = new OkResponse(true);
+
+    public static OkResponse instance() {
+        return OK;
     }
 }

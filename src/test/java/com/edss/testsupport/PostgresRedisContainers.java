@@ -6,8 +6,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Shared Postgres + Redis containers for integration tests. Singleton so the
- * containers start once per JVM instead of per test class.
+ * Test containers for integration tests. Postgres always starts; Redis starts
+ * only when a test opts in via {@link #registerRedisProperties(DynamicPropertyRegistry)}.
+ * Day-1 the app runs on in-memory stores so most tests do not need Redis.
  */
 public final class PostgresRedisContainers {
 
@@ -17,12 +18,10 @@ public final class PostgresRedisContainers {
                     .withUsername("edss")
                     .withPassword("edss");
 
-    public static final RedisContainer REDIS =
-            new RedisContainer(DockerImageName.parse("redis:7-alpine"));
+    private static volatile RedisContainer redis;
 
     static {
         POSTGRES.start();
-        REDIS.start();
     }
 
     private PostgresRedisContainers() {}
@@ -31,7 +30,31 @@ public final class PostgresRedisContainers {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+    }
+
+    /**
+     * Opts into Redis for tests that exercise the {@code edss.redis.enabled=true}
+     * code path. Starts a single container lazily.
+     */
+    public static void registerRedisProperties(DynamicPropertyRegistry registry) {
+        RedisContainer container = ensureRedis();
+        registry.add("edss.redis.enabled", () -> "true");
+        registry.add("spring.data.redis.host", container::getHost);
+        registry.add("spring.data.redis.port", () -> container.getMappedPort(6379));
+    }
+
+    private static RedisContainer ensureRedis() {
+        RedisContainer local = redis;
+        if (local != null) {
+            return local;
+        }
+        synchronized (PostgresRedisContainers.class) {
+            if (redis == null) {
+                RedisContainer c = new RedisContainer(DockerImageName.parse("redis:7-alpine"));
+                c.start();
+                redis = c;
+            }
+            return redis;
+        }
     }
 }

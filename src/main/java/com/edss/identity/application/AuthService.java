@@ -16,7 +16,7 @@ import com.edss.shared.api.ApiException;
 import com.edss.shared.config.SecurityProperties;
 import com.edss.shared.events.OutboxWriter;
 import com.edss.shared.ratelimit.RateLimitDecision;
-import com.edss.shared.ratelimit.RedisRateLimiter;
+import com.edss.shared.ratelimit.RateLimiter;
 import com.edss.shared.security.JwtService;
 import java.time.Clock;
 import java.time.Instant;
@@ -43,7 +43,7 @@ public class AuthService {
     private final TwoFactorChallengeStore twoFactorChallenges;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwt;
-    private final RedisRateLimiter rateLimiter;
+    private final RateLimiter rateLimiter;
     private final SecurityProperties securityProperties;
     private final OutboxWriter outbox;
     private final Clock clock;
@@ -56,7 +56,7 @@ public class AuthService {
             TwoFactorChallengeStore twoFactorChallenges,
             PasswordEncoder passwordEncoder,
             JwtService jwt,
-            RedisRateLimiter rateLimiter,
+            RateLimiter rateLimiter,
             SecurityProperties securityProperties,
             OutboxWriter outbox,
             Clock clock) {

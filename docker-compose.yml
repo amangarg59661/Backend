@@ -16,9 +16,13 @@ services:
       timeout: 3s
       retries: 10
 
+  # Redis is optional. Day-1 the app runs on in-memory stores. Start this
+  # service (or docker-compose --profile scale up -d) and set REDIS_ENABLED=true
+  # in .env when moving to multi-instance deployments.
   redis:
     image: redis:7-alpine
     container_name: edss-redis
+    profiles: ["scale"]
     ports:
       - "6379:6379"
     healthcheck:

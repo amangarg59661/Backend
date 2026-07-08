@@ -14,6 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @Modulithic(systemName = "edss")
 public class EdssApplication {
 
+
     public static void main(String[] args) {
         SpringApplication.run(EdssApplication.class, args);
     }

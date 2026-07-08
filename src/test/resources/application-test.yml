@@ -3,6 +3,8 @@ spring:
     show-sql: false
 
 edss:
+  redis:
+    enabled: false
   security:
     jwt:
       secret: test-secret-that-is-definitely-at-least-32-bytes-long-!!
