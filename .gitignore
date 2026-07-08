@@ -25,6 +25,8 @@ target/
 ### Env / secrets ###
 .env
 .env.local
+.env.production
+.env.development
 *.pem
 *.key
 

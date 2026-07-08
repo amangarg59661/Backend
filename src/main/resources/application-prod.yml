@@ -1,0 +1,65 @@
+# ============================================================================
+# Production profile — hard security, Resend SMTP, Supabase Postgres, Sentry on.
+#
+# Every required secret is env-var-only with no default. Missing values cause
+# a fail-fast startup error rather than silent misconfiguration.
+# ============================================================================
+
+spring:
+  jpa:
+    show-sql: false
+  mail:
+    # Resend transactional SMTP. Username is literally "resend"; password is
+    # the API key from https://resend.com/api-keys.
+    host: ${MAIL_HOST:smtp.resend.com}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:resend}
+    password: ${RESEND_API_KEY}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: false
+
+edss:
+  features:
+    storage:
+      db-provider: supabase
+      # Enable Redis in prod — durable refresh tokens + cross-instance rate
+      # limits + session store shared across the fleet.
+      redis-enabled: ${REDIS_ENABLED:true}
+    auth:
+      # Enforce full auth security on prod. All flags default to safest.
+      two-factor: ${AUTH_TWO_FACTOR:true}
+      rate-limit: true
+      password-reset: true
+      session-rotation: true
+    observability:
+      sentry-enabled: true
+    integrations:
+      mail:
+        provider: resend
+  security:
+    cors:
+      # Required env var — no default. Deployment fails to start without it.
+      allowed-origins: ${CORS_ALLOWED_ORIGINS}
+    rate-limit:
+      # Tighter windows on prod. Bump via env for load tests.
+      login-per-email-per-window: ${RATE_LIMIT_EMAIL:5}
+      login-per-ip-per-window: ${RATE_LIMIT_IP:20}
+
+sentry:
+  enabled: true
+  # DSN required. No default. Boot fails without it.
+  dsn: ${SENTRY_DSN}
+  environment: ${SENTRY_ENVIRONMENT:production}
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:0.1}
+
+logging:
+  level:
+    root: INFO
+    com.edss: INFO
+    org.springframework.security: WARN

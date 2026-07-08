@@ -20,12 +20,42 @@ All toggles live under `edss.features.*` in `application.yml`. See
 surface. Groups: `storage`, `auth`, `observability`, `integrations`. Override
 any flag via env var (e.g. `SENTRY_ENABLED=true`).
 
-## Local run
+Profile defaults:
+
+| Flag | dev | prod |
+|---|---|---|
+| `auth.two-factor` | off | on |
+| `auth.rate-limit` | off | on |
+| `auth.session-rotation` | off | on |
+| `storage.redis-enabled` | off | on |
+| `observability.sentry-enabled` | off | on |
+| `integrations.mail.provider` | mailhog | resend |
+| `storage.db-provider` | self-hosted | supabase |
+
+## Production checklist
+
+Before deploying with `SPRING_PROFILES_ACTIVE=prod`, make sure every value in
+`.env.production.example` is set — the boot fails fast on any missing
+required var (`RESEND_API_KEY`, `SENTRY_DSN`, `CORS_ALLOWED_ORIGINS`,
+`JWT_SECRET`, Supabase DB creds).
+
+## Profiles
+
+Two Spring profiles ship: `dev` (loose security, Mailhog, local Postgres,
+Sentry off) and `prod` (hard security, Resend SMTP, Supabase, Sentry on).
+
+- Profile is chosen via `SPRING_PROFILES_ACTIVE=dev|prod`. Defaults to `dev`.
+- Per-profile behaviour lives in `application-dev.yml` and `application-prod.yml`.
+- Env templates:
+  - `.env.development.example` — copy for local development.
+  - `.env.production.example` — reference on the prod host.
+
+## Local run (dev profile)
 
 ```
-cp .env.example .env      # then edit secrets
-docker-compose up -d
-./mvnw spring-boot:run
+cp .env.development.example .env      # then edit secrets
+docker compose up -d postgres mailhog
+mvn spring-boot:run
 ```
 
 App boots on `http://localhost:8080`.

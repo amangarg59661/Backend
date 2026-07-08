@@ -1,6 +1,12 @@
+# Test profile — inherits dev defaults but forces deterministic secrets and
+# disables all outbound integrations so tests never touch prod-like services.
+
 spring:
   jpa:
     show-sql: false
+  mail:
+    host: localhost
+    port: 1025
 
 edss:
   features:
@@ -19,17 +25,20 @@ edss:
       mail:
         provider: mailhog
   security:
-
-sentry:
-  enabled: false
-  dsn: ""
     jwt:
       secret: test-secret-that-is-definitely-at-least-32-bytes-long-!!
       access-ttl: PT15M
       refresh-ttl: PT1H
+    cors:
+      allowed-origins:
+        - http://localhost:3001
   admin:
     email: admin@edss.local
     password: TestAdmin@Password123!
+
+sentry:
+  enabled: false
+  dsn: ""
 
 logging:
   level:
