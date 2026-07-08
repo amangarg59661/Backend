@@ -65,12 +65,42 @@ management:
       show-details: never
 
 edss:
-  redis:
-    # Day-1: false → in-memory refresh tokens, 2FA challenges, rate-limit
-    # buckets. Single-node, state lost on restart.
-    # Scale-out: true → Redis-backed. Shared across instances, survives
-    # restart. Requires REDIS_HOST/PORT to point at a real cluster.
-    enabled: ${REDIS_ENABLED:false}
+  # ---------------------------------------------------------------------------
+  # Feature flags. Single surface for every toggle. Add new flags in
+  # com.edss.shared.config.FeaturesProperties and reference them here.
+  # ---------------------------------------------------------------------------
+  features:
+    storage:
+      # local | supabase | neon. Selector is documentation-only — the driver
+      # is always Postgres. Set DB_URL to match the provider.
+      db-provider: ${DB_PROVIDER:local}
+      # In-memory (false) vs Redis (true) for refresh tokens, 2FA challenges,
+      # rate-limit buckets. Enable when scaling to multiple instances.
+      redis-enabled: ${REDIS_ENABLED:false}
+      # Outbox relay on/off. Off = domain events never publish (useful for
+      # data-import migrations that shouldn't fan out notifications).
+      outbox-relay: ${OUTBOX_RELAY:true}
+    auth:
+      # TOTP challenge after correct password. v1 has no enrollment yet, so
+      # keep off in dev; flip on once settings/2FA-enrollment lands.
+      two-factor: ${AUTH_TWO_FACTOR:false}
+      # Per-email + per-IP login rate limit. Disable in load tests only.
+      rate-limit: ${AUTH_RATE_LIMIT:true}
+      # /auth/forgot-password + /auth/reset-password endpoints active.
+      password-reset: ${AUTH_PASSWORD_RESET:true}
+      # Rotate refresh token on every /auth/refresh call. Safer default.
+      session-rotation: ${AUTH_SESSION_ROTATION:true}
+    integrations:
+      convex:
+        # Convex.dev projection store. Not a primary data source — Postgres
+        # remains authoritative. Wired later; scaffold only for now.
+        enabled: ${CONVEX_ENABLED:false}
+        url: ${CONVEX_URL:}
+        deploy-key: ${CONVEX_DEPLOY_KEY:}
+      mail:
+        # mailhog | smtp | ses | sendgrid. Only mailhog / smtp wired in v1.
+        provider: ${MAIL_PROVIDER:mailhog}
+
   security:
     jwt:
       secret: ${JWT_SECRET}

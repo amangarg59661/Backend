@@ -9,7 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "edss.redis.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "edss.features.storage.redis-enabled", havingValue = "false", matchIfMissing = true)
 public class InMemoryTwoFactorChallengeStore implements TwoFactorChallengeStore {
 
     private static final Duration TTL = Duration.ofMinutes(5);

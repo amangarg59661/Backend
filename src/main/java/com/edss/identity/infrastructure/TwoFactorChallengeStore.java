@@ -6,7 +6,7 @@ import java.util.UUID;
 /**
  * Short-lived 2FA challenge tokens issued when login succeeds but the user
  * has TOTP enabled. Two impls (in-memory / Redis) switch on
- * {@code edss.redis.enabled}.
+ * {@code edss.features.storage.redis-enabled}.
  */
 public interface TwoFactorChallengeStore {
 

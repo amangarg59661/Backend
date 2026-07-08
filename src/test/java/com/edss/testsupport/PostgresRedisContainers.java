@@ -33,12 +33,12 @@ public final class PostgresRedisContainers {
     }
 
     /**
-     * Opts into Redis for tests that exercise the {@code edss.redis.enabled=true}
+     * Opts into Redis for tests that exercise the {@code edss.features.storage.redis-enabled=true}
      * code path. Starts a single container lazily.
      */
     public static void registerRedisProperties(DynamicPropertyRegistry registry) {
         RedisContainer container = ensureRedis();
-        registry.add("edss.redis.enabled", () -> "true");
+        registry.add("edss.features.storage.redis-enabled", () -> "true");
         registry.add("spring.data.redis.host", container::getHost);
         registry.add("spring.data.redis.port", () -> container.getMappedPort(6379));
     }

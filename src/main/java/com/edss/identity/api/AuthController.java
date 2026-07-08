@@ -10,6 +10,9 @@ import com.edss.identity.api.dto.ResetPasswordRequest;
 import com.edss.identity.api.dto.TwoFaVerifyRequest;
 import com.edss.identity.application.AuthService;
 import com.edss.identity.application.PasswordResetService;
+import com.edss.shared.api.ApiErrorCode;
+import com.edss.shared.api.ApiException;
+import com.edss.shared.config.FeaturesProperties;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -26,10 +29,13 @@ public class AuthController {
 
     private final AuthService auth;
     private final PasswordResetService passwordReset;
+    private final FeaturesProperties features;
 
-    public AuthController(AuthService auth, PasswordResetService passwordReset) {
+    public AuthController(
+            AuthService auth, PasswordResetService passwordReset, FeaturesProperties features) {
         this.auth = auth;
         this.passwordReset = passwordReset;
+        this.features = features;
     }
 
     @PostMapping("/login")
@@ -56,14 +62,23 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     public OkResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
+        requirePasswordReset();
         passwordReset.requestReset(req.email());
         return OkResponse.instance();
     }
 
     @PostMapping("/reset-password")
     public OkResponse resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+        requirePasswordReset();
         passwordReset.resetPassword(req.token(), req.newPassword());
         return OkResponse.instance();
+    }
+
+    private void requirePasswordReset() {
+        if (!features.auth().passwordReset()) {
+            throw new ApiException(
+                    ApiErrorCode.NOT_FOUND, "Password reset is disabled on this deployment.");
+        }
     }
 
     private static String clientIp(HttpServletRequest request) {

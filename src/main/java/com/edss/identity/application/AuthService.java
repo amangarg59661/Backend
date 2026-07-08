@@ -13,6 +13,7 @@ import com.edss.identity.infrastructure.TwoFactorChallengeStore;
 import com.edss.identity.infrastructure.UserRepository;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
+import com.edss.shared.config.FeaturesProperties;
 import com.edss.shared.config.SecurityProperties;
 import com.edss.shared.events.OutboxWriter;
 import com.edss.shared.ratelimit.RateLimitDecision;
@@ -45,6 +46,7 @@ public class AuthService {
     private final JwtService jwt;
     private final RateLimiter rateLimiter;
     private final SecurityProperties securityProperties;
+    private final FeaturesProperties features;
     private final OutboxWriter outbox;
     private final Clock clock;
 
@@ -58,6 +60,7 @@ public class AuthService {
             JwtService jwt,
             RateLimiter rateLimiter,
             SecurityProperties securityProperties,
+            FeaturesProperties features,
             OutboxWriter outbox,
             Clock clock) {
         this.users = users;
@@ -69,6 +72,7 @@ public class AuthService {
         this.jwt = jwt;
         this.rateLimiter = rateLimiter;
         this.securityProperties = securityProperties;
+        this.features = features;
         this.outbox = outbox;
         this.clock = clock;
     }
@@ -205,10 +209,13 @@ public class AuthService {
     }
 
     private boolean isTwoFactorEnabled(User user) {
-        return false;
+        return features.auth().twoFactor();
     }
 
     private void enforceLoginRateLimit(String email, String ipAddress) {
+        if (!features.auth().rateLimit()) {
+            return;
+        }
         int emailLimit = securityProperties.rateLimit().loginPerEmailPerWindow();
         int ipLimit = securityProperties.rateLimit().loginPerIpPerWindow();
         var window = securityProperties.rateLimit().window();

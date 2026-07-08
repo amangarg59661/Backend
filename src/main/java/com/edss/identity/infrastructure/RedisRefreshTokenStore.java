@@ -12,10 +12,10 @@ import org.springframework.stereotype.Component;
 
 /**
  * Redis-backed refresh token store. Keyed by {@code rt:<sha256(token)>}; TTL
- * enforced by Redis itself. Only wired when {@code edss.redis.enabled=true}.
+ * enforced by Redis itself. Only wired when {@code edss.features.storage.redis-enabled=true}.
  */
 @Component
-@ConditionalOnProperty(name = "edss.redis.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "edss.features.storage.redis-enabled", havingValue = "true")
 public class RedisRefreshTokenStore implements RefreshTokenStore {
 
     private static final String KEY_PREFIX = "rt:";

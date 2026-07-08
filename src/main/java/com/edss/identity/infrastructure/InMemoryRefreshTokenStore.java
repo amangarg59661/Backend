@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * out but access tokens continue to work until their 15-minute exp.
  */
 @Component
-@ConditionalOnProperty(name = "edss.redis.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "edss.features.storage.redis-enabled", havingValue = "false", matchIfMissing = true)
 public class InMemoryRefreshTokenStore implements RefreshTokenStore {
 
     private final ConcurrentHashMap<String, Stored> tokens = new ConcurrentHashMap<>();

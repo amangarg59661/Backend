@@ -10,7 +10,7 @@ import java.util.UUID;
  * <ul>
  *   <li>In-memory (default) — single-node, lost on restart. Fine for day-1.</li>
  *   <li>Redis-backed — shared across instances, survives restarts. Enable via
- *       {@code edss.redis.enabled=true}.</li>
+ *       {@code edss.features.storage.redis-enabled=true}.</li>
  * </ul>
  */
 public interface RefreshTokenStore {

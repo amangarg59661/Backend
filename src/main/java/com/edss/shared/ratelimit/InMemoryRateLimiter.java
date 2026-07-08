@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  * Loses state on restart — acceptable for day-1 single-instance deployments.
  */
 @Component
-@ConditionalOnProperty(name = "edss.redis.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "edss.features.storage.redis-enabled", havingValue = "false", matchIfMissing = true)
 public class InMemoryRateLimiter implements RateLimiter {
 
     private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();

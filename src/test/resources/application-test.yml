@@ -3,8 +3,23 @@ spring:
     show-sql: false
 
 edss:
-  redis:
-    enabled: false
+  features:
+    storage:
+      db-provider: local
+      redis-enabled: false
+      outbox-relay: true
+    auth:
+      two-factor: false
+      rate-limit: true
+      password-reset: true
+      session-rotation: true
+    integrations:
+      convex:
+        enabled: false
+        url: ""
+        deploy-key: ""
+      mail:
+        provider: mailhog
   security:
     jwt:
       secret: test-secret-that-is-definitely-at-least-32-bytes-long-!!

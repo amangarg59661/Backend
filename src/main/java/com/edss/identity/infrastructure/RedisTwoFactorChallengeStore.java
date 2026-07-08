@@ -8,7 +8,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "edss.redis.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "edss.features.storage.redis-enabled", havingValue = "true")
 public class RedisTwoFactorChallengeStore implements TwoFactorChallengeStore {
 
     private static final String KEY_PREFIX = "2fa:chal:";

@@ -7,7 +7,7 @@ import java.time.Duration;
  * <ul>
  *   <li>In-memory (default) — single-node, resets on restart. Fine for day-1.</li>
  *   <li>Redis-backed — survives restarts, shared across instances. Enable via
- *       {@code edss.redis.enabled=true} when scaling out.</li>
+ *       {@code edss.features.storage.redis-enabled=true} when scaling out.</li>
  * </ul>
  */
 public interface RateLimiter {

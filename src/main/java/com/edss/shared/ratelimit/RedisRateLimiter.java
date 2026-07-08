@@ -10,11 +10,11 @@ import org.springframework.stereotype.Component;
  * TTL; subsequent hits increment. When the counter exceeds {@code limit} the
  * caller is denied and told how long until the window rolls over.
  *
- * <p>Only wired when {@code edss.redis.enabled=true}. Day-1 uses
+ * <p>Only wired when {@code edss.features.storage.redis-enabled=true}. Day-1 uses
  * {@link InMemoryRateLimiter} instead.</p>
  */
 @Component
-@ConditionalOnProperty(name = "edss.redis.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "edss.features.storage.redis-enabled", havingValue = "true")
 public class RedisRateLimiter implements RateLimiter {
 
     private final StringRedisTemplate redis;

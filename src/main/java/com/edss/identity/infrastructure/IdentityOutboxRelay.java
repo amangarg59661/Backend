@@ -3,12 +3,17 @@ package com.edss.identity.infrastructure;
 import com.edss.shared.config.OutboxProperties;
 import com.edss.shared.events.OutboxRelay;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(
+        name = "edss.features.storage.outbox-relay",
+        havingValue = "true",
+        matchIfMissing = true)
 public class IdentityOutboxRelay extends OutboxRelay {
 
     public IdentityOutboxRelay(
