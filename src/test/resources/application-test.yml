@@ -1,0 +1,17 @@
+spring:
+  jpa:
+    show-sql: false
+
+edss:
+  security:
+    jwt:
+      secret: test-secret-that-is-definitely-at-least-32-bytes-long-!!
+      access-ttl: PT15M
+      refresh-ttl: PT1H
+  admin:
+    email: admin@edss.local
+    password: TestAdmin@Password123!
+
+logging:
+  level:
+    com.edss: DEBUG

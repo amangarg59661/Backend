@@ -1,0 +1,47 @@
+package com.edss.shared.security;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.edss.shared.config.SecurityProperties;
+import java.time.Clock;
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+
+class JwtServiceTest {
+
+    private static final SecurityProperties PROPS =
+            new SecurityProperties(
+                    new SecurityProperties.Jwt(
+                            "test-secret-that-is-definitely-at-least-32-bytes!!",
+                            Duration.ofMinutes(15),
+                            Duration.ofDays(30)),
+                    new SecurityProperties.Cors(List.of("http://localhost:3001")),
+                    new SecurityProperties.RateLimit(5, 20, Duration.ofMinutes(15)));
+
+    private final JwtService jwt = new JwtService(PROPS, Clock.systemUTC());
+
+    @Test
+    void issuedTokenIsParseable() {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+
+        JwtService.IssuedToken issued =
+                jwt.issueAccessToken(userId, "user@example.com", "staff", false, sessionId);
+        JwtService.ParsedToken parsed = jwt.parse(issued.token());
+
+        assertThat(parsed.userId()).isEqualTo(userId);
+        assertThat(parsed.email()).isEqualTo("user@example.com");
+        assertThat(parsed.primaryRole()).isEqualTo("staff");
+        assertThat(parsed.hasBothRoles()).isFalse();
+        assertThat(parsed.sessionId()).isEqualTo(sessionId);
+    }
+
+    @Test
+    void garbageTokenIsRejected() {
+        assertThatThrownBy(() -> jwt.parse("not-a-jwt"))
+                .isInstanceOf(JwtService.InvalidJwtException.class);
+    }
+}

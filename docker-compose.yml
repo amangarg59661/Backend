@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: edss-postgres
+    environment:
+      POSTGRES_DB: edss
+      POSTGRES_USER: edss
+      POSTGRES_PASSWORD: edss
+    ports:
+      - "5432:5432"
+    volumes:
+      - edss_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edss -d edss"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: edss-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: edss-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  edss_pg_data:
