@@ -8,10 +8,15 @@ import java.util.UUID;
 public record InvoiceDto(
         UUID id,
         UUID clientUserId,
+        UUID projectId,
+        UUID milestoneId,
         String number,
         long amountMinor,
         String currency,
         String status,
+        String provider,
+        String paymentLink,
         Instant issuedAt,
         Instant dueAt,
+        Instant paidAt,
         Instant createdAt) {}

@@ -44,6 +44,10 @@ class SecurityConfig {
                                                 org.springframework.http.HttpMethod.POST,
                                                 "/api/v1/inquiries")
                                         .permitAll()
+                                        .requestMatchers(
+                                                org.springframework.http.HttpMethod.POST,
+                                                "/api/v1/webhooks/**")
+                                        .permitAll()
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(corsFilter, JwtAuthFilter.class)
