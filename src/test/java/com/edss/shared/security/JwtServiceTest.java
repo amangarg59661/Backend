@@ -19,7 +19,8 @@ class JwtServiceTest {
                             Duration.ofMinutes(15),
                             Duration.ofDays(30)),
                     new SecurityProperties.Cors(List.of("http://localhost:3001")),
-                    new SecurityProperties.RateLimit(5, 20, Duration.ofMinutes(15)));
+                    new SecurityProperties.RateLimit(5, 20, Duration.ofMinutes(15)),
+                    new SecurityProperties.Secrets("YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY="));
 
     private final JwtService jwt = new JwtService(PROPS, Clock.systemUTC());
 

@@ -14,16 +14,34 @@ edss:
       db-provider: self-hosted
       redis-enabled: false
       outbox-relay: true
+      file-backend: supabase
     auth:
       two-factor: false
+      two-factor-enrollment: true
       rate-limit: true
       password-reset: true
       session-rotation: true
+      remember-device-days: 30
     observability:
       sentry-enabled: false
+    payments:
+      stripe-enabled: false
+      razorpay-enabled: false
+      manual-enabled: true
+    notifications:
+      channels:
+        email: true
+        in-app: true
+        whatsapp: false
+        sms: false
     integrations:
       mail:
         provider: mailhog
+      calendar:
+        provider: manual
+        google-sync: false
+      messaging:
+        whatsapp-enabled: false
   security:
     jwt:
       secret: test-secret-that-is-definitely-at-least-32-bytes-long-!!
@@ -32,6 +50,13 @@ edss:
     cors:
       allowed-origins:
         - http://localhost:3001
+    rate-limit:
+      login-per-email-per-window: 5
+      login-per-ip-per-window: 20
+      window: PT15M
+    secrets:
+      # base64('abcdefghijklmnopqrstuvwxyz123456') = 32 bytes
+      encryption-key: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=
   admin:
     email: admin@edss.local
     password: TestAdmin@Password123!

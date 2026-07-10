@@ -39,9 +39,24 @@ edss:
       session-rotation: true
     observability:
       sentry-enabled: true
+    payments:
+      stripe-enabled: ${PAYMENTS_STRIPE_ENABLED:true}
+      razorpay-enabled: ${PAYMENTS_RAZORPAY_ENABLED:true}
+      manual-enabled: ${PAYMENTS_MANUAL_ENABLED:true}
+    notifications:
+      channels:
+        email: true
+        in-app: true
+        whatsapp: ${NOTIFICATIONS_WHATSAPP:true}
+        sms: ${NOTIFICATIONS_SMS:false}
     integrations:
       mail:
         provider: resend
+      calendar:
+        provider: ${CALENDAR_PROVIDER:calcom}
+        google-sync: ${GOOGLE_CALENDAR_SYNC:true}
+      messaging:
+        whatsapp-enabled: ${WHATSAPP_ENABLED:true}
   security:
     cors:
       # Required env var — no default. Deployment fails to start without it.

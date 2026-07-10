@@ -16,7 +16,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "edss.features")
 public record FeaturesProperties(
-        Storage storage, Auth auth, Observability observability, Integrations integrations) {
+        Storage storage,
+        Auth auth,
+        Observability observability,
+        Payments payments,
+        Notifications notifications,
+        Integrations integrations) {
 
     public record Storage(
             /** {@code supabase} (current) or {@code self-hosted} (future). Driver is
@@ -26,26 +31,64 @@ public record FeaturesProperties(
             /** Flip in-memory stores → Redis-backed. Enable when scaling out. */
             boolean redisEnabled,
             /** Turn the outbox relay on/off. Off = events never publish. */
-            boolean outboxRelay) {}
+            boolean outboxRelay,
+            /** File-storage backend: {@code supabase} or {@code s3}. */
+            String fileBackend) {}
 
     public record Auth(
             /** Prompt users with TOTP challenge after correct password. */
             boolean twoFactor,
+            /** Expose the 2FA enrollment endpoints. Distinct from twoFactor so
+             * enrollment can stay open while login-side 2FA is being rolled out. */
+            boolean twoFactorEnrollment,
             /** Enforce login rate limit per email + per IP. */
             boolean rateLimit,
             /** Forgot-password endpoint issues reset tokens + emits event. */
             boolean passwordReset,
             /** Rotate refresh tokens on every refresh call. */
-            boolean sessionRotation) {}
+            boolean sessionRotation,
+            /** Days a "remember this device" token is valid. */
+            int rememberDeviceDays) {}
 
     public record Observability(
             /** Ship uncaught exceptions to Sentry. Requires SENTRY_DSN when true. */
             boolean sentryEnabled) {}
 
-    public record Integrations(Mail mail) {
+    public record Payments(
+            /** Stripe gateway available for invoice creation. */
+            boolean stripeEnabled,
+            /** Razorpay gateway available for invoice creation. */
+            boolean razorpayEnabled,
+            /** Manual gateway available (bank transfer / offline mark-paid). */
+            boolean manualEnabled) {}
+
+    public record Notifications(Channels channels) {
+
+        public record Channels(
+                /** Deliver notifications via SMTP. */
+                boolean email,
+                /** Deliver notifications into the in-app inbox + WebSocket push. */
+                boolean inApp,
+                /** Deliver notifications via Twilio WhatsApp Business. */
+                boolean whatsapp,
+                /** Deliver notifications via SMS. Stub until wired. */
+                boolean sms) {}
+    }
+
+    public record Integrations(Mail mail, Calendar calendar, Messaging messaging) {
 
         public record Mail(
-                /** mailhog | smtp | ses | sendgrid. Only mailhog / smtp wired in v1. */
+                /** mailhog | resend | smtp. Docs tag; SMTP host/port drive delivery. */
                 String provider) {}
+
+        public record Calendar(
+                /** calcom | calendly | manual. Provider that mints booking links + emits webhooks. */
+                String provider,
+                /** Optionally sync onboarding calls into staff Google Calendar via OAuth. */
+                boolean googleSync) {}
+
+        public record Messaging(
+                /** Twilio WhatsApp Business API on/off. */
+                boolean whatsappEnabled) {}
     }
 }

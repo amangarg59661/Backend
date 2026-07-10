@@ -13,14 +13,36 @@ spring:
 
 edss:
   features:
+    storage:
+      # Local file uploads land in Supabase dev bucket (or Minio if you swap
+      # the client). S3 impl still gated by flag.
+      file-backend: supabase
     auth:
       # Off in dev so testers can hammer login flows without lockouts.
       rate-limit: false
       # v1 has no TOTP enrollment yet; keep 2FA off so login proceeds directly.
       two-factor: false
+      # Enrollment endpoints on in dev so devs can test the QR-code path.
+      two-factor-enrollment: true
       # Off in dev so a refresh in the browser tab does not silently invalidate
       # other open tabs while you are debugging.
       session-rotation: false
+    payments:
+      stripe-enabled: false
+      razorpay-enabled: false
+      manual-enabled: true
+    notifications:
+      channels:
+        email: true
+        in-app: true
+        whatsapp: false
+        sms: false
+    integrations:
+      calendar:
+        provider: manual
+        google-sync: false
+      messaging:
+        whatsapp-enabled: false
   security:
     cors:
       # Wide open for local frontend + Storybook + Vite defaults.

@@ -7,14 +7,21 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * Signed browser token that bypasses 2FA on a specific device for a limited
+ * TTL. Storing only the SHA-256 hash means a leak cannot be replayed.
+ */
 @Entity
-@Table(schema = "identity", name = "sessions")
-public class Session {
+@Table(schema = "identity", name = "trusted_devices")
+public class TrustedDevice {
 
     @Id private UUID id;
 
     @Column(name = "user_id")
     private UUID userId;
+
+    @Column(name = "device_token_hash")
+    private String deviceTokenHash;
 
     @Column(name = "user_agent")
     private String userAgent;
@@ -25,24 +32,29 @@ public class Session {
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
-    @Column(name = "last_active_at")
-    private Instant lastActiveAt;
+    @Column(name = "expires_at")
+    private Instant expiresAt;
 
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
-    @Column(name = "revoked_by_user_id")
-    private UUID revokedByUserId;
+    protected TrustedDevice() {}
 
-    protected Session() {}
-
-    public Session(UUID id, UUID userId, String userAgent, String ipAddress, Instant createdAt) {
+    public TrustedDevice(
+            UUID id,
+            UUID userId,
+            String deviceTokenHash,
+            String userAgent,
+            String ipAddress,
+            Instant createdAt,
+            Instant expiresAt) {
         this.id = id;
         this.userId = userId;
+        this.deviceTokenHash = deviceTokenHash;
         this.userAgent = userAgent;
         this.ipAddress = ipAddress;
         this.createdAt = createdAt;
-        this.lastActiveAt = createdAt;
+        this.expiresAt = expiresAt;
     }
 
     public UUID getId() {
@@ -51,6 +63,10 @@ public class Session {
 
     public UUID getUserId() {
         return userId;
+    }
+
+    public String getDeviceTokenHash() {
+        return deviceTokenHash;
     }
 
     public String getUserAgent() {
@@ -65,28 +81,19 @@ public class Session {
         return createdAt;
     }
 
-    public Instant getLastActiveAt() {
-        return lastActiveAt;
-    }
-
-    public void touch(Instant at) {
-        this.lastActiveAt = at;
+    public Instant getExpiresAt() {
+        return expiresAt;
     }
 
     public Instant getRevokedAt() {
         return revokedAt;
     }
 
-    public UUID getRevokedByUserId() {
-        return revokedByUserId;
-    }
-
-    public void revoke(UUID actorUserId, Instant at) {
+    public void revoke(Instant at) {
         this.revokedAt = at;
-        this.revokedByUserId = actorUserId;
     }
 
-    public boolean isActive() {
-        return revokedAt == null;
+    public boolean isActive(Instant now) {
+        return revokedAt == null && now.isBefore(expiresAt);
     }
 }
