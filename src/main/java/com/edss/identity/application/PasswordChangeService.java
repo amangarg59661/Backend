@@ -14,7 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Password change for an already-authenticated user. Requires the current
  * password so a hijacked session cannot lock the real user out. New password
  * enforces the same policy as {@code ResetPasswordRequest} (12+ chars, mixed
- * classes) — validation happens on the DTO.
+ * classes) — validation happens on the DTO. Reuse of the last 3 passwords
+ * is blocked via {@link PasswordHistoryService}.
  */
 @Service
 @Transactional
@@ -22,12 +23,17 @@ public class PasswordChangeService {
 
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordHistoryService history;
     private final Clock clock;
 
     public PasswordChangeService(
-            UserRepository users, PasswordEncoder passwordEncoder, Clock clock) {
+            UserRepository users,
+            PasswordEncoder passwordEncoder,
+            PasswordHistoryService history,
+            Clock clock) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
+        this.history = history;
         this.clock = clock;
     }
 
@@ -40,11 +46,9 @@ public class PasswordChangeService {
             throw new ApiException(
                     ApiErrorCode.INVALID_CREDENTIALS, "Current password incorrect.");
         }
-        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
-            throw new ApiException(
-                    ApiErrorCode.VALIDATION_FAILED,
-                    "New password must be different from the current one.");
-        }
-        user.changePasswordHash(passwordEncoder.encode(newPassword), clock.instant());
+        history.rejectIfReused(userId, user.getPasswordHash(), newPassword);
+        String newHash = passwordEncoder.encode(newPassword);
+        user.changePasswordHash(newHash, clock.instant());
+        history.recordNewHash(userId, newHash);
     }
 }

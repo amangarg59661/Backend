@@ -37,6 +37,7 @@ public class PasswordResetService {
     private final UserRepository users;
     private final PasswordResetTokenRepository tokens;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordHistoryService history;
     private final OutboxWriter outbox;
     private final Clock clock;
 
@@ -44,11 +45,13 @@ public class PasswordResetService {
             UserRepository users,
             PasswordResetTokenRepository tokens,
             PasswordEncoder passwordEncoder,
+            PasswordHistoryService history,
             OutboxWriter outbox,
             Clock clock) {
         this.users = users;
         this.tokens = tokens;
         this.passwordEncoder = passwordEncoder;
+        this.history = history;
         this.outbox = outbox;
         this.clock = clock;
     }
@@ -103,7 +106,10 @@ public class PasswordResetService {
                                         new ApiException(
                                                 ApiErrorCode.VALIDATION_FAILED,
                                                 "Invalid or expired token."));
-        user.changePasswordHash(passwordEncoder.encode(newPassword), now);
+        history.rejectIfReused(user.getId(), user.getPasswordHash(), newPassword);
+        String newHash = passwordEncoder.encode(newPassword);
+        user.changePasswordHash(newHash, now);
+        history.recordNewHash(user.getId(), newHash);
         token.markUsed(now);
         log.info("Password reset for userId={}", user.getId());
     }
