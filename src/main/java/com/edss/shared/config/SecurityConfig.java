@@ -40,6 +40,10 @@ class SecurityConfig {
                                                 "/swagger-ui/**",
                                                 "/swagger-ui.html")
                                         .permitAll()
+                                        .requestMatchers(
+                                                org.springframework.http.HttpMethod.POST,
+                                                "/api/v1/inquiries")
+                                        .permitAll()
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(corsFilter, JwtAuthFilter.class)
