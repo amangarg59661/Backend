@@ -40,7 +40,12 @@ public class AuthController {
 
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
-        return auth.login(req.email(), req.password(), clientIp(http), userAgent(http));
+        return auth.login(
+                req.email(),
+                req.password(),
+                req.trustedDeviceToken(),
+                clientIp(http),
+                userAgent(http));
     }
 
     @PostMapping("/refresh")
@@ -57,7 +62,12 @@ public class AuthController {
     @PostMapping("/2fa/verify")
     public LoginResponse verify2fa(
             @Valid @RequestBody TwoFaVerifyRequest req, HttpServletRequest http) {
-        return auth.verifyTwoFactor(req.challengeId(), req.code(), clientIp(http), userAgent(http));
+        return auth.verifyTwoFactor(
+                req.challengeId(),
+                req.code(),
+                req.rememberDevice(),
+                clientIp(http),
+                userAgent(http));
     }
 
     @PostMapping("/forgot-password")

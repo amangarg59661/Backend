@@ -42,6 +42,10 @@ public class AuthService {
     private final SessionRepository sessions;
     private final RefreshTokenStore refreshTokens;
     private final TwoFactorChallengeStore twoFactorChallenges;
+    private final TwoFactorService twoFactor;
+    private final TotpService totp;
+    private final TrustedDeviceService trustedDevices;
+    private final SessionService sessionService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwt;
     private final RateLimiter rateLimiter;
@@ -56,6 +60,10 @@ public class AuthService {
             SessionRepository sessions,
             RefreshTokenStore refreshTokens,
             TwoFactorChallengeStore twoFactorChallenges,
+            TwoFactorService twoFactor,
+            TotpService totp,
+            TrustedDeviceService trustedDevices,
+            SessionService sessionService,
             PasswordEncoder passwordEncoder,
             JwtService jwt,
             RateLimiter rateLimiter,
@@ -68,6 +76,10 @@ public class AuthService {
         this.sessions = sessions;
         this.refreshTokens = refreshTokens;
         this.twoFactorChallenges = twoFactorChallenges;
+        this.twoFactor = twoFactor;
+        this.totp = totp;
+        this.trustedDevices = trustedDevices;
+        this.sessionService = sessionService;
         this.passwordEncoder = passwordEncoder;
         this.jwt = jwt;
         this.rateLimiter = rateLimiter;
@@ -77,7 +89,12 @@ public class AuthService {
         this.clock = clock;
     }
 
-    public LoginResponse login(String email, String password, String ipAddress, String userAgent) {
+    public LoginResponse login(
+            String email,
+            String password,
+            String trustedDeviceToken,
+            String ipAddress,
+            String userAgent) {
         enforceLoginRateLimit(email, ipAddress);
 
         Optional<User> maybeUser = users.findByEmailIgnoreCase(email);
@@ -90,17 +107,20 @@ public class AuthService {
             throw new ApiException(ApiErrorCode.FORBIDDEN, "Account is not active.");
         }
 
-        // 2FA gate — v1 does not persist enrollment yet, so this branch stays
-        // dormant until the settings feature enables users. Wire is ready.
-        if (isTwoFactorEnabled(user)) {
+        if (isTwoFactorRequired(user) && !trustedDevices.isTrusted(user.getId(), trustedDeviceToken)) {
             String challengeId = twoFactorChallenges.issue(user.getId());
             return LoginResponse.challenge(challengeId);
         }
 
-        return issueFullSession(user, ipAddress, userAgent);
+        return issueFullSession(user, ipAddress, userAgent, false);
     }
 
-    public LoginResponse verifyTwoFactor(String challengeId, String code, String ipAddress, String userAgent) {
+    public LoginResponse verifyTwoFactor(
+            String challengeId,
+            String code,
+            boolean rememberDevice,
+            String ipAddress,
+            String userAgent) {
         Optional<UUID> userId = twoFactorChallenges.consume(challengeId);
         if (userId.isEmpty()) {
             throw new ApiException(ApiErrorCode.INVALID_TOTP, "Challenge expired.");
@@ -111,12 +131,18 @@ public class AuthService {
                                 () ->
                                         new ApiException(
                                                 ApiErrorCode.INVALID_TOTP, "Challenge expired."));
-        // v1: no TOTP secret persisted yet. Placeholder accepts the sentinel
-        // "000000" like MSW mocks so the FE flow is exercisable end-to-end.
-        if (!"000000".equals(code)) {
+        String secret =
+                twoFactor
+                        .decryptSecret(user.getId())
+                        .orElseThrow(
+                                () ->
+                                        new ApiException(
+                                                ApiErrorCode.INVALID_TOTP,
+                                                "2FA not enrolled."));
+        if (!totp.verify(secret, code)) {
             throw new ApiException(ApiErrorCode.INVALID_TOTP, "Incorrect code.");
         }
-        return issueFullSession(user, ipAddress, userAgent);
+        return issueFullSession(user, ipAddress, userAgent, rememberDevice);
     }
 
     public RefreshResponse refresh(String refreshToken) {
@@ -128,6 +154,9 @@ public class AuthService {
                                         new ApiException(
                                                 ApiErrorCode.SESSION_EXPIRED, "Session expired."));
 
+        if (!sessionService.isActive(stored.sessionId())) {
+            throw new ApiException(ApiErrorCode.SESSION_REVOKED, "Session revoked.");
+        }
         User user =
                 users.findById(stored.userId())
                         .orElseThrow(
@@ -135,13 +164,15 @@ public class AuthService {
                                         new ApiException(
                                                 ApiErrorCode.SESSION_EXPIRED, "Session expired."));
 
+        List<String> perms = permissions.findPermissionStringsByUserId(user.getId());
         JwtService.IssuedToken access =
                 jwt.issueAccessToken(
                         user.getId(),
                         user.getEmail(),
                         user.getPrimaryRole(),
                         user.isHasBothRoles(),
-                        stored.sessionId());
+                        stored.sessionId(),
+                        perms);
         RefreshTokenStore.IssuedRefresh next =
                 refreshTokens.issue(
                         user.getId(), stored.sessionId(), securityProperties.jwt().refreshTtl());
@@ -149,7 +180,7 @@ public class AuthService {
                 access.token(),
                 access.expiresAt().getEpochSecond(),
                 next.token(),
-                permissions.findPermissionStringsByUserId(user.getId()),
+                perms,
                 stored.sessionId().toString());
     }
 
@@ -159,18 +190,21 @@ public class AuthService {
         }
     }
 
-    private LoginResponse issueFullSession(User user, String ipAddress, String userAgent) {
+    private LoginResponse issueFullSession(
+            User user, String ipAddress, String userAgent, boolean rememberDevice) {
         Instant now = clock.instant();
         UUID sessionId = UUID.randomUUID();
         sessions.save(new Session(sessionId, user.getId(), userAgent, ipAddress, now));
 
+        List<String> perms = permissions.findPermissionStringsByUserId(user.getId());
         JwtService.IssuedToken access =
                 jwt.issueAccessToken(
                         user.getId(),
                         user.getEmail(),
                         user.getPrimaryRole(),
                         user.isHasBothRoles(),
-                        sessionId);
+                        sessionId,
+                        perms);
         RefreshTokenStore.IssuedRefresh refresh =
                 refreshTokens.issue(user.getId(), sessionId, securityProperties.jwt().refreshTtl());
 
@@ -197,7 +231,13 @@ public class AuthService {
                         user.getPrimaryRole(),
                         user.isHasBothRoles(),
                         user.getCreatedAt());
-        List<String> perms = permissions.findPermissionStringsByUserId(user.getId());
+
+        String trustedDeviceToken = null;
+        if (rememberDevice) {
+            TrustedDeviceService.IssuedDevice device =
+                    trustedDevices.issue(user.getId(), userAgent, ipAddress);
+            trustedDeviceToken = device.token();
+        }
 
         return LoginResponse.full(
                 access.token(),
@@ -205,11 +245,13 @@ public class AuthService {
                 refresh.token(),
                 userDto,
                 perms,
-                sessionId.toString());
+                sessionId.toString(),
+                trustedDeviceToken);
     }
 
-    private boolean isTwoFactorEnabled(User user) {
-        return features.auth().twoFactor();
+    /** Global flag OR user-level enrollment enables 2FA on login. */
+    private boolean isTwoFactorRequired(User user) {
+        return features.auth().twoFactor() || twoFactor.isEnabled(user.getId());
     }
 
     private void enforceLoginRateLimit(String email, String ipAddress) {

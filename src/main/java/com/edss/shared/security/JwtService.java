@@ -36,7 +36,8 @@ public class JwtService {
             String email,
             String primaryRole,
             boolean hasBothRoles,
-            UUID sessionId) {
+            UUID sessionId,
+            java.util.List<String> permissions) {
         Instant now = clock.instant();
         Instant expiresAt = now.plus(properties.jwt().accessTtl());
         String token =
@@ -47,7 +48,8 @@ public class JwtService {
                                         "email", email,
                                         "primary_role", primaryRole,
                                         "has_both_roles", hasBothRoles,
-                                        "session_id", sessionId.toString()))
+                                        "session_id", sessionId.toString(),
+                                        "permissions", permissions))
                         .issuedAt(java.util.Date.from(now))
                         .expiration(java.util.Date.from(expiresAt))
                         .signWith(key)
@@ -55,15 +57,22 @@ public class JwtService {
         return new IssuedToken(token, expiresAt);
     }
 
+    @SuppressWarnings("unchecked")
     public ParsedToken parse(String token) {
         try {
             Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            Object rawPerms = claims.get("permissions");
+            java.util.List<String> perms =
+                    rawPerms instanceof java.util.List<?> l
+                            ? l.stream().map(Object::toString).toList()
+                            : java.util.List.of();
             return new ParsedToken(
                     UUID.fromString(claims.getSubject()),
                     (String) claims.get("email"),
                     (String) claims.get("primary_role"),
                     Boolean.TRUE.equals(claims.get("has_both_roles")),
                     UUID.fromString((String) claims.get("session_id")),
+                    perms,
                     claims.getExpiration().toInstant());
         } catch (JwtException | IllegalArgumentException ex) {
             throw new InvalidJwtException(ex.getMessage());
@@ -78,6 +87,7 @@ public class JwtService {
             String primaryRole,
             boolean hasBothRoles,
             UUID sessionId,
+            java.util.List<String> permissions,
             Instant expiresAt) {}
 
     public static class InvalidJwtException extends RuntimeException {

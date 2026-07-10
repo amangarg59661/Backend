@@ -30,7 +30,13 @@ class JwtServiceTest {
         UUID sessionId = UUID.randomUUID();
 
         JwtService.IssuedToken issued =
-                jwt.issueAccessToken(userId, "user@example.com", "staff", false, sessionId);
+                jwt.issueAccessToken(
+                        userId,
+                        "user@example.com",
+                        "staff",
+                        false,
+                        sessionId,
+                        List.of("projects:project:read", "admin:*"));
         JwtService.ParsedToken parsed = jwt.parse(issued.token());
 
         assertThat(parsed.userId()).isEqualTo(userId);
@@ -38,6 +44,7 @@ class JwtServiceTest {
         assertThat(parsed.primaryRole()).isEqualTo("staff");
         assertThat(parsed.hasBothRoles()).isFalse();
         assertThat(parsed.sessionId()).isEqualTo(sessionId);
+        assertThat(parsed.permissions()).containsExactly("projects:project:read", "admin:*");
     }
 
     @Test

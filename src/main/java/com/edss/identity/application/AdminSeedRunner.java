@@ -1,6 +1,7 @@
 package com.edss.identity.application;
 
 import com.edss.identity.domain.Permission;
+import com.edss.identity.domain.Role;
 import com.edss.identity.domain.User;
 import com.edss.identity.infrastructure.PermissionRepository;
 import com.edss.identity.infrastructure.UserRepository;
@@ -28,6 +29,7 @@ public class AdminSeedRunner implements CommandLineRunner {
     private final PermissionRepository permissions;
     private final PasswordEncoder passwordEncoder;
     private final AdminSeedProperties adminProperties;
+    private final PermissionCatalog permissionCatalog;
     private final Clock clock;
 
     public AdminSeedRunner(
@@ -35,11 +37,13 @@ public class AdminSeedRunner implements CommandLineRunner {
             PermissionRepository permissions,
             PasswordEncoder passwordEncoder,
             AdminSeedProperties adminProperties,
+            PermissionCatalog permissionCatalog,
             Clock clock) {
         this.users = users;
         this.permissions = permissions;
         this.passwordEncoder = passwordEncoder;
         this.adminProperties = adminProperties;
+        this.permissionCatalog = permissionCatalog;
         this.clock = clock;
     }
 
@@ -71,7 +75,9 @@ public class AdminSeedRunner implements CommandLineRunner {
                         true,
                         clock.instant());
         users.save(admin);
-        permissions.save(new Permission(id, "admin:*"));
+        for (String perm : permissionCatalog.permissionsFor(Role.ADMIN)) {
+            permissions.save(new Permission(id, perm));
+        }
         log.info("Seeded admin user {} ({})", email, id);
     }
 }

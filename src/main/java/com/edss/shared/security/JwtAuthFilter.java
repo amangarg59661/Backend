@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import org.slf4j.Logger;
@@ -47,8 +48,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                             parsed.primaryRole(),
                             parsed.hasBothRoles(),
                             parsed.sessionId());
-            Collection<GrantedAuthority> authorities =
-                    List.of(new SimpleGrantedAuthority("ROLE_" + parsed.primaryRole().toUpperCase()));
+            Collection<GrantedAuthority> authorities = new ArrayList<>();
+            authorities.add(
+                    new SimpleGrantedAuthority("ROLE_" + parsed.primaryRole().toUpperCase()));
+            for (String perm : parsed.permissions()) {
+                authorities.add(new SimpleGrantedAuthority(perm));
+            }
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(principal, token, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);
