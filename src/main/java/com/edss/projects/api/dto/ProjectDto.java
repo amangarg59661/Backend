@@ -11,5 +11,12 @@ public record ProjectDto(
         String title,
         String description,
         String status,
+        String phase,
+        String billingModel,
+        Integer maintenanceDurationDays,
+        Instant maintenanceStartsAt,
+        Instant maintenanceEndsAt,
+        Long totalAmountMinor,
+        String currency,
         Instant createdAt,
         Instant updatedAt) {}
