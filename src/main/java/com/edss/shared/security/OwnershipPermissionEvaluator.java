@@ -41,7 +41,11 @@ public class OwnershipPermissionEvaluator implements PermissionEvaluator {
         boolean anyGrant =
                 auth.getAuthorities().stream()
                         .map(GrantedAuthority::getAuthority)
-                        .anyMatch(a -> matches(a, requiredBase) || matches(a, required));
+                        .anyMatch(
+                                a ->
+                                        "admin:*".equals(a)
+                                                || matches(a, requiredBase)
+                                                || matches(a, required));
         if (!anyGrant) {
             return false;
         }
