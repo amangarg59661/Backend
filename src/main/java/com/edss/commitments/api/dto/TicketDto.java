@@ -13,5 +13,7 @@ public record TicketDto(
         String description,
         String priority,
         String status,
+        UUID assigneeUserId,
+        boolean isMaintenance,
         Instant createdAt,
         Instant updatedAt) {}

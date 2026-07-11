@@ -27,6 +27,12 @@ public class Ticket {
 
     private String status;
 
+    @Column(name = "assignee_user_id")
+    private UUID assigneeUserId;
+
+    @Column(name = "is_maintenance")
+    private boolean isMaintenance;
+
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
@@ -34,6 +40,27 @@ public class Ticket {
     private Instant updatedAt;
 
     protected Ticket() {}
+
+    public Ticket(
+            UUID id,
+            UUID raisedByUserId,
+            UUID projectId,
+            String subject,
+            String description,
+            String priority,
+            boolean isMaintenance,
+            Instant createdAt) {
+        this.id = id;
+        this.raisedByUserId = raisedByUserId;
+        this.projectId = projectId;
+        this.subject = subject;
+        this.description = description;
+        this.priority = priority == null ? "normal" : priority;
+        this.status = TicketStatus.OPEN.wire();
+        this.isMaintenance = isMaintenance;
+        this.createdAt = createdAt;
+        this.updatedAt = createdAt;
+    }
 
     public UUID getId() {
         return id;
@@ -59,8 +86,16 @@ public class Ticket {
         return priority;
     }
 
-    public String getStatus() {
-        return status;
+    public TicketStatus getStatus() {
+        return TicketStatus.ofWire(status);
+    }
+
+    public UUID getAssigneeUserId() {
+        return assigneeUserId;
+    }
+
+    public boolean isMaintenance() {
+        return isMaintenance;
     }
 
     public Instant getCreatedAt() {
@@ -69,5 +104,19 @@ public class Ticket {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public void assign(UUID assigneeUserId, Instant at) {
+        this.assigneeUserId = assigneeUserId;
+        this.updatedAt = at;
+    }
+
+    public void changeStatus(TicketStatus target, Instant at) {
+        this.status = target.wire();
+        this.updatedAt = at;
+    }
+
+    public void touch(Instant at) {
+        this.updatedAt = at;
     }
 }
