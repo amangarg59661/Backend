@@ -47,7 +47,7 @@ public class TicketController {
             @RequestParam(required = false) UUID assigneeUserId,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit) {
-        boolean isStaff = isStaff(principal);
+        boolean isStaff = principal.isStaff();
         List<TicketDto> items =
                 tickets.list(principal.userId(), isStaff, projectId, assigneeUserId, limit).stream()
                         .map(TicketController::toDto)
@@ -110,12 +110,8 @@ public class TicketController {
         return toDto(ticket);
     }
 
-    private static boolean isStaff(AuthenticatedUser principal) {
-        return "staff".equals(principal.primaryRole()) || principal.hasBothRoles();
-    }
-
     private static void enforceRead(AuthenticatedUser principal, Ticket ticket) {
-        if (isStaff(principal)) {
+        if (principal.isStaff()) {
             return;
         }
         if (!ticket.getRaisedByUserId().equals(principal.userId())) {

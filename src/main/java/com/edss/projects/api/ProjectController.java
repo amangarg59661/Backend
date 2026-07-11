@@ -73,7 +73,7 @@ public class ProjectController {
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit) {
-        boolean isStaff = isStaff(principal);
+        boolean isStaff = principal.isStaff();
         List<ProjectDto> items =
                 projects.list(principal.userId(), isStaff, limit).stream()
                         .map(ProjectController::toDto)
@@ -198,7 +198,7 @@ public class ProjectController {
             @PathVariable UUID milestoneId,
             @Valid @RequestBody MilestoneReviewRequest req) {
         Project project = projects.fetch(projectId);
-        enforceClientOrStaff(principal, project);
+        enforceReadAccess(principal, project);
         return toDto(
                 milestones.review(
                         projectId,
@@ -242,11 +242,11 @@ public class ProjectController {
         Contract.Kind kind = Contract.Kind.ofWire(req.kind());
         // Only staff can upload unsigned; only the owning client (or staff) can
         // upload signed.
-        if (kind == Contract.Kind.UNSIGNED && !isStaff(principal)) {
+        if (kind == Contract.Kind.UNSIGNED && !principal.isStaff()) {
             throw new ApiException(ApiErrorCode.FORBIDDEN, "Staff only.");
         }
         if (kind == Contract.Kind.SIGNED) {
-            enforceClientOrStaff(principal, project);
+            enforceReadAccess(principal, project);
         }
         return toDto(
                 contracts.register(
@@ -285,21 +285,8 @@ public class ProjectController {
     // Helpers
     // -----------------------------------------------------------------------
 
-    private static boolean isStaff(AuthenticatedUser principal) {
-        return "staff".equals(principal.primaryRole()) || principal.hasBothRoles();
-    }
-
     private static void enforceReadAccess(AuthenticatedUser principal, Project project) {
-        if (isStaff(principal)) {
-            return;
-        }
-        if (!project.getOwnerUserId().equals(principal.userId())) {
-            throw new ApiException(ApiErrorCode.FORBIDDEN, "Not your project.");
-        }
-    }
-
-    private static void enforceClientOrStaff(AuthenticatedUser principal, Project project) {
-        if (isStaff(principal)) {
+        if (principal.isStaff()) {
             return;
         }
         if (!project.getOwnerUserId().equals(principal.userId())) {

@@ -85,6 +85,15 @@ public class StripeGateway implements PaymentGateway {
     public WebhookVerification verify(String signatureHeader, String rawBody) {
         try {
             Event event = Webhook.constructEvent(rawBody, signatureHeader, stripeConfig.webhookSecret());
+            // Non-payment events (charge.*, customer.*, invoice.* etc.) still
+            // return valid=true with a null intentId — the webhook service
+            // marks them applied without touching invoices. Skip the
+            // deserialise cost for anything we don't care about.
+            String type = event.getType();
+            if (!"checkout.session.completed".equals(type)
+                    && !"payment_intent.succeeded".equals(type)) {
+                return new WebhookVerification(true, event.getId(), type, null, null);
+            }
             String intentId = null;
             if (event.getDataObjectDeserializer() != null
                     && event.getDataObjectDeserializer().getObject().isPresent()) {
@@ -95,7 +104,7 @@ public class StripeGateway implements PaymentGateway {
                     intentId = pi.getId();
                 }
             }
-            return new WebhookVerification(true, event.getId(), event.getType(), intentId, null);
+            return new WebhookVerification(true, event.getId(), type, intentId, null);
         } catch (SignatureVerificationException ex) {
             return WebhookVerification.invalid("Signature verification failed.");
         }

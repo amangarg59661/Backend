@@ -8,14 +8,10 @@ import com.edss.identity.infrastructure.UserRepository;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
 import com.edss.shared.events.OutboxWriter;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import com.edss.shared.security.TokenHashing;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,8 +27,6 @@ public class PasswordResetService {
 
     private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
     private static final Duration TOKEN_TTL = Duration.ofMinutes(30);
-    private static final SecureRandom RNG = new SecureRandom();
-    private static final Base64.Encoder ENC = Base64.getUrlEncoder().withoutPadding();
 
     private final UserRepository users;
     private final PasswordResetTokenRepository tokens;
@@ -66,8 +60,8 @@ public class PasswordResetService {
             return;
         }
         User user = maybeUser.get();
-        String plaintextToken = randomToken();
-        String hash = sha256(plaintextToken);
+        String plaintextToken = TokenHashing.randomUrlBase64(32);
+        String hash = TokenHashing.sha256UrlBase64(plaintextToken);
         Instant now = clock.instant();
         tokens.save(new PasswordResetToken(hash, user.getId(), now.plus(TOKEN_TTL)));
 
@@ -87,7 +81,7 @@ public class PasswordResetService {
     }
 
     public void resetPassword(String plaintextToken, String newPassword) {
-        String hash = sha256(plaintextToken);
+        String hash = TokenHashing.sha256UrlBase64(plaintextToken);
         PasswordResetToken token =
                 tokens.findByTokenHash(hash)
                         .orElseThrow(
@@ -114,18 +108,4 @@ public class PasswordResetService {
         log.info("Password reset for userId={}", user.getId());
     }
 
-    private static String randomToken() {
-        byte[] bytes = new byte[32];
-        RNG.nextBytes(bytes);
-        return ENC.encodeToString(bytes);
-    }
-
-    private static String sha256(String value) {
-        try {
-            byte[] out = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-            return ENC.encodeToString(out);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException(ex);
-        }
-    }
 }

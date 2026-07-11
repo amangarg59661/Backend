@@ -12,6 +12,7 @@ import com.edss.identity.application.AuthService;
 import com.edss.identity.application.PasswordResetService;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
+import com.edss.shared.api.HttpRequests;
 import com.edss.shared.config.FeaturesProperties;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -100,12 +101,7 @@ public class AuthController {
     }
 
     private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            int comma = forwarded.indexOf(',');
-            return (comma > 0 ? forwarded.substring(0, comma) : forwarded).trim();
-        }
-        return request.getRemoteAddr();
+        return HttpRequests.clientIp(request);
     }
 
     private static String userAgent(HttpServletRequest request) {

@@ -23,7 +23,6 @@ import com.edss.shared.ratelimit.RateLimiter;
 import com.edss.shared.security.JwtService;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -120,10 +119,8 @@ public class AuthService {
         }
         if (needsTwoFa) {
             String challengeId = twoFactorChallenges.issue(user.getId());
-            List<String> availableMethods = new ArrayList<>();
-            for (MfaMethod m : enabled) {
-                availableMethods.add(m.getMethodType().wire());
-            }
+            List<String> availableMethods =
+                    enabled.stream().map(m -> m.getMethodType().wire()).toList();
             return LoginResponse.challenge(challengeId, availableMethods);
         }
 
@@ -148,12 +145,15 @@ public class AuthService {
         } catch (IllegalArgumentException ex) {
             throw new ApiException(ApiErrorCode.VALIDATION_FAILED, "Unknown MFA method.");
         }
-        Optional<UUID> userId = twoFactorChallenges.consume(challengeId);
-        if (userId.isEmpty()) {
-            throw new ApiException(ApiErrorCode.INVALID_TOTP, "Challenge expired.");
-        }
+        UUID userId =
+                twoFactorChallenges
+                        .consume(challengeId)
+                        .orElseThrow(
+                                () ->
+                                        new ApiException(
+                                                ApiErrorCode.INVALID_TOTP, "Challenge expired."));
         User user =
-                users.findById(userId.get())
+                users.findById(userId)
                         .orElseThrow(
                                 () ->
                                         new ApiException(

@@ -1,5 +1,6 @@
 package com.edss.identity.infrastructure;
 
+import com.edss.shared.security.TokenHashing;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -30,8 +31,8 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
 
     @Override
     public IssuedRefresh issue(UUID userId, UUID sessionId, Duration ttl) {
-        String token = RefreshTokenTokens.randomToken();
-        String key = KEY_PREFIX + RefreshTokenTokens.hash(token);
+        String token = TokenHashing.randomUrlBase64(32);
+        String key = KEY_PREFIX + TokenHashing.sha256UrlBase64(token);
         Instant expiresAt = Instant.now().plus(ttl);
         Stored stored = new Stored(userId, sessionId, expiresAt);
         try {
@@ -44,7 +45,7 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
 
     @Override
     public Optional<Stored> consume(String token) {
-        String key = KEY_PREFIX + RefreshTokenTokens.hash(token);
+        String key = KEY_PREFIX + TokenHashing.sha256UrlBase64(token);
         String raw = redis.opsForValue().get(key);
         if (raw == null) {
             return Optional.empty();
@@ -59,6 +60,6 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
 
     @Override
     public void revoke(String token) {
-        redis.delete(KEY_PREFIX + RefreshTokenTokens.hash(token));
+        redis.delete(KEY_PREFIX + TokenHashing.sha256UrlBase64(token));
     }
 }

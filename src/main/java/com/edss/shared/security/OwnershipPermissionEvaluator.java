@@ -41,11 +41,7 @@ public class OwnershipPermissionEvaluator implements PermissionEvaluator {
         boolean anyGrant =
                 auth.getAuthorities().stream()
                         .map(GrantedAuthority::getAuthority)
-                        .anyMatch(
-                                a ->
-                                        "admin:*".equals(a)
-                                                || matches(a, requiredBase)
-                                                || matches(a, required));
+                        .anyMatch(a -> matches(a, requiredBase) || matches(a, required));
         if (!anyGrant) {
             return false;
         }
@@ -65,12 +61,18 @@ public class OwnershipPermissionEvaluator implements PermissionEvaluator {
         return hasPermission(auth, targetId, permission);
     }
 
+    private static final java.util.Set<String> SUPER_SCOPES = java.util.Set.of("admin");
+
     private boolean matches(String granted, String required) {
         if (granted.equals(required)) {
             return true;
         }
         if (!granted.endsWith(":*")) {
             return false;
+        }
+        String scope = granted.substring(0, granted.length() - 2);
+        if (SUPER_SCOPES.contains(scope)) {
+            return true;
         }
         String prefix = granted.substring(0, granted.length() - 1);
         return required.startsWith(prefix);

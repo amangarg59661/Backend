@@ -41,10 +41,11 @@ public class CalendarWebhookService {
             Clock clock) {
         this.events = events;
         this.onboardingCalls = onboardingCalls;
-        this.clients = new java.util.HashMap<>();
-        for (CalendarWebhookClient c : clientList) {
-            this.clients.put(c.providerId(), c);
-        }
+        this.clients =
+                clientList.stream()
+                        .collect(
+                                java.util.stream.Collectors.toUnmodifiableMap(
+                                        CalendarWebhookClient::providerId, c -> c));
         this.clock = clock;
     }
 

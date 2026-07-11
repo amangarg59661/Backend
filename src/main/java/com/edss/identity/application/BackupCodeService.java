@@ -2,14 +2,11 @@ package com.edss.identity.application;
 
 import com.edss.identity.domain.BackupCode;
 import com.edss.identity.infrastructure.BackupCodeRepository;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.edss.shared.security.TokenHashing;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -41,23 +38,28 @@ public class BackupCodeService {
     /**
      * Wipes any existing codes for the user and issues a fresh 10-code set.
      * The plaintext values are returned once — after this call they can only
-     * be redeemed, never re-read.
+     * be redeemed, never re-read. Rows are inserted in one batched saveAll.
      */
     public List<String> regenerate(UUID userId) {
         codes.deleteAllForUser(userId);
         Instant now = clock.instant();
         List<String> plaintext = new ArrayList<>(CODE_COUNT);
+        List<BackupCode> rows = new ArrayList<>(CODE_COUNT);
         for (int i = 0; i < CODE_COUNT; i++) {
             String code = randomCode();
             plaintext.add(code);
-            codes.save(new BackupCode(UUID.randomUUID(), userId, sha256(code), now));
+            rows.add(
+                    new BackupCode(
+                            UUID.randomUUID(), userId, TokenHashing.sha256UrlBase64(code), now));
         }
+        codes.saveAll(rows);
         return plaintext;
     }
 
     /** Returns {@code true} if the code matched an unused code and was consumed. */
     public boolean consume(UUID userId, String plaintext) {
-        Optional<BackupCode> hit = codes.findByUserIdAndCodeHash(userId, sha256(plaintext));
+        Optional<BackupCode> hit =
+                codes.findByUserIdAndCodeHash(userId, TokenHashing.sha256UrlBase64(plaintext));
         if (hit.isEmpty() || hit.get().isUsed()) {
             return false;
         }
@@ -76,14 +78,5 @@ public class BackupCodeService {
             sb.append(ALPHABET[RNG.nextInt(ALPHABET.length)]);
         }
         return sb.toString();
-    }
-
-    private static String sha256(String value) {
-        try {
-            byte[] out = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(out);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException(ex);
-        }
     }
 }

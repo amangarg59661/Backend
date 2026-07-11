@@ -68,7 +68,7 @@ public class FileController {
             @RequestParam(required = false) UUID milestoneId,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit) {
-        boolean isStaff = isStaff(principal);
+        boolean isStaff = principal.isStaff();
         List<FileDto> items =
                 files.list(principal.userId(), isStaff, projectId, milestoneId, limit).stream()
                         .map(FileController::toDto)
@@ -80,11 +80,7 @@ public class FileController {
     public DownloadUrlResponse downloadUrl(
             @AuthenticationPrincipal AuthenticatedUser principal, @PathVariable UUID fileId) {
         return new DownloadUrlResponse(
-                files.downloadUrl(fileId, principal.userId(), isStaff(principal)));
-    }
-
-    private static boolean isStaff(AuthenticatedUser principal) {
-        return "staff".equals(principal.primaryRole()) || principal.hasBothRoles();
+                files.downloadUrl(fileId, principal.userId(), principal.isStaff()));
     }
 
     private static FileDto toDto(FileRecord f) {

@@ -10,14 +10,10 @@ import com.edss.identity.infrastructure.PermissionRepository;
 import com.edss.identity.infrastructure.UserRepository;
 import com.edss.identity.spi.IdentityUserProvisioning;
 import com.edss.shared.events.OutboxWriter;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import com.edss.shared.security.TokenHashing;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -35,8 +31,6 @@ import org.springframework.transaction.annotation.Transactional;
 class IdentityUserProvisioningService implements IdentityUserProvisioning {
 
     private static final Duration INVITE_TTL = Duration.ofDays(7);
-    private static final SecureRandom RNG = new SecureRandom();
-    private static final Base64.Encoder ENC = Base64.getUrlEncoder().withoutPadding();
 
     private final UserRepository users;
     private final PermissionRepository permissions;
@@ -73,7 +67,7 @@ class IdentityUserProvisioningService implements IdentityUserProvisioning {
         UUID userId = UUID.randomUUID();
         // Random placeholder hash — never usable because BCrypt never matches
         // the empty string, and the invite flow forces a reset before login.
-        String placeholderHash = passwordEncoder.encode(randomToken());
+        String placeholderHash = passwordEncoder.encode(TokenHashing.randomUrlBase64(32));
         User user =
                 new User(userId, email, name, placeholderHash, role.wire(), false, true, now);
         users.save(user);
@@ -81,8 +75,8 @@ class IdentityUserProvisioningService implements IdentityUserProvisioning {
             permissions.save(new Permission(userId, perm));
         }
 
-        String plaintextToken = randomToken();
-        String tokenHash = sha256(plaintextToken);
+        String plaintextToken = TokenHashing.randomUrlBase64(32);
+        String tokenHash = TokenHashing.sha256UrlBase64(plaintextToken);
         Instant expiresAt = now.plus(INVITE_TTL);
         tokens.save(new PasswordResetToken(tokenHash, userId, expiresAt));
 
@@ -95,18 +89,4 @@ class IdentityUserProvisioningService implements IdentityUserProvisioning {
         return new InviteResult(userId, plaintextToken, expiresAt);
     }
 
-    private static String randomToken() {
-        byte[] bytes = new byte[32];
-        RNG.nextBytes(bytes);
-        return ENC.encodeToString(bytes);
-    }
-
-    private static String sha256(String value) {
-        try {
-            byte[] out = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-            return ENC.encodeToString(out);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException(ex);
-        }
-    }
 }

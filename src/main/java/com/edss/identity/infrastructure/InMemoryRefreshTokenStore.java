@@ -1,5 +1,6 @@
 package com.edss.identity.infrastructure;
 
+import com.edss.shared.security.TokenHashing;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -21,15 +22,15 @@ public class InMemoryRefreshTokenStore implements RefreshTokenStore {
 
     @Override
     public IssuedRefresh issue(UUID userId, UUID sessionId, Duration ttl) {
-        String token = RefreshTokenTokens.randomToken();
+        String token = TokenHashing.randomUrlBase64(32);
         Instant expiresAt = Instant.now().plus(ttl);
-        tokens.put(RefreshTokenTokens.hash(token), new Stored(userId, sessionId, expiresAt));
+        tokens.put(TokenHashing.sha256UrlBase64(token), new Stored(userId, sessionId, expiresAt));
         return new IssuedRefresh(token, expiresAt);
     }
 
     @Override
     public Optional<Stored> consume(String token) {
-        Stored stored = tokens.remove(RefreshTokenTokens.hash(token));
+        Stored stored = tokens.remove(TokenHashing.sha256UrlBase64(token));
         if (stored == null) {
             return Optional.empty();
         }
@@ -41,6 +42,6 @@ public class InMemoryRefreshTokenStore implements RefreshTokenStore {
 
     @Override
     public void revoke(String token) {
-        tokens.remove(RefreshTokenTokens.hash(token));
+        tokens.remove(TokenHashing.sha256UrlBase64(token));
     }
 }

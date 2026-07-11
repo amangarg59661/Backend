@@ -35,10 +35,11 @@ public class NotificationDispatcher {
         this.routing = routing;
         this.recipientResolver = recipientResolver;
         this.copyResolver = copyResolver;
-        this.channelsById = new java.util.HashMap<>();
-        for (NotificationChannel channel : channels) {
-            this.channelsById.put(channel.channelId(), channel);
-        }
+        this.channelsById =
+                channels.stream()
+                        .collect(
+                                java.util.stream.Collectors.toUnmodifiableMap(
+                                        NotificationChannel::channelId, c -> c));
     }
 
     @ApplicationModuleListener

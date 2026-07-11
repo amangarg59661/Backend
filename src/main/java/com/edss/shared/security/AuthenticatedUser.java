@@ -12,4 +12,9 @@ public record AuthenticatedUser(
         String email,
         String primaryRole,
         boolean hasBothRoles,
-        UUID sessionId) {}
+        UUID sessionId) {
+
+    public boolean isStaff() {
+        return "staff".equals(primaryRole) || hasBothRoles;
+    }
+}

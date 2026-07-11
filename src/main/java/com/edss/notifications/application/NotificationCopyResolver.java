@@ -19,9 +19,10 @@ public class NotificationCopyResolver {
         NotificationCopy render(EventEnvelope envelope);
     }
 
-    private final Map<String, Renderer> renderers = new java.util.HashMap<>();
+    private static final Map<String, Renderer> RENDERERS = buildRenderers();
 
-    public NotificationCopyResolver() {
+    private static Map<String, Renderer> buildRenderers() {
+        java.util.Map<String, Renderer> renderers = new java.util.HashMap<>();
         renderers.put(
                 "identity.user_registered",
                 env -> info("Account created", "Your EDSS account is ready."));
@@ -128,10 +129,11 @@ public class NotificationCopyResolver {
                                     + token
                                     + "\n\nExpires in 30 minutes.");
                 });
+        return Map.copyOf(renderers);
     }
 
     public NotificationCopy resolve(EventEnvelope envelope) {
-        Renderer renderer = renderers.get(envelope.eventType());
+        Renderer renderer = RENDERERS.get(envelope.eventType());
         if (renderer == null) {
             return info("Notification", envelope.eventType());
         }

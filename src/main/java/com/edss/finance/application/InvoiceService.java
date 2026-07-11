@@ -42,10 +42,11 @@ public class InvoiceService {
             ObjectMapper objectMapper,
             Clock clock) {
         this.invoices = invoices;
-        this.gatewaysById = new java.util.HashMap<>();
-        for (PaymentGateway gw : gateways) {
-            this.gatewaysById.put(gw.providerId(), gw);
-        }
+        this.gatewaysById =
+                gateways.stream()
+                        .collect(
+                                java.util.stream.Collectors.toUnmodifiableMap(
+                                        PaymentGateway::providerId, gw -> gw));
         this.outbox = outbox;
         this.objectMapper = objectMapper;
         this.clock = clock;

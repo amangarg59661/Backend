@@ -4,6 +4,7 @@ import com.edss.relationship.api.dto.InquiryDto;
 import com.edss.relationship.api.dto.InquirySubmitRequest;
 import com.edss.relationship.application.InquiryService;
 import com.edss.relationship.domain.Inquiry;
+import com.edss.shared.api.HttpRequests;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -58,11 +59,6 @@ public class PublicInquiryController {
     }
 
     private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            int comma = forwarded.indexOf(',');
-            return (comma > 0 ? forwarded.substring(0, comma) : forwarded).trim();
-        }
-        return request.getRemoteAddr();
+        return HttpRequests.clientIp(request);
     }
 }

@@ -37,7 +37,7 @@ public class InvoiceController {
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit) {
-        boolean isStaff = isStaff(principal);
+        boolean isStaff = principal.isStaff();
         List<InvoiceDto> items =
                 invoices.list(principal.userId(), isStaff, limit).stream()
                         .map(InvoiceController::toDto)
@@ -90,12 +90,8 @@ public class InvoiceController {
         return toDto(invoices.void_(invoiceId, principal.userId()));
     }
 
-    private static boolean isStaff(AuthenticatedUser principal) {
-        return "staff".equals(principal.primaryRole()) || principal.hasBothRoles();
-    }
-
     private static void enforceReadAccess(AuthenticatedUser principal, Invoice invoice) {
-        if (isStaff(principal)) {
+        if (principal.isStaff()) {
             return;
         }
         if (!invoice.getClientUserId().equals(principal.userId())) {

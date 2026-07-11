@@ -109,10 +109,9 @@ public class SupabaseStorageClient implements StorageClient {
                         .DELETE()
                         .build();
         try {
-            HttpResponse<String> res =
-                    http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<Void> res = http.send(req, HttpResponse.BodyHandlers.discarding());
             if (res.statusCode() >= 300) {
-                log.warn("Supabase delete failed [{}]: {}", res.statusCode(), res.body());
+                log.warn("Supabase delete failed [{}]", res.statusCode());
             }
         } catch (Exception ex) {
             log.warn("Supabase delete threw", ex);
@@ -126,18 +125,20 @@ public class SupabaseStorageClient implements StorageClient {
     }
 
     private JsonNode send(HttpRequest req, String action) {
+        HttpResponse<String> res;
         try {
-            HttpResponse<String> res =
-                    http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (res.statusCode() >= 300) {
-                throw new StorageException(
-                        "Supabase " + action + " failed [" + res.statusCode() + "]: " + res.body());
-            }
-            return objectMapper.readTree(res.body());
-        } catch (StorageException ex) {
-            throw ex;
+            res = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (Exception ex) {
             throw new StorageException("Supabase " + action + " threw", ex);
+        }
+        if (res.statusCode() >= 300) {
+            throw new StorageException(
+                    "Supabase " + action + " failed [" + res.statusCode() + "]: " + res.body());
+        }
+        try {
+            return objectMapper.readTree(res.body());
+        } catch (Exception ex) {
+            throw new StorageException("Supabase " + action + " parse failed", ex);
         }
     }
 }

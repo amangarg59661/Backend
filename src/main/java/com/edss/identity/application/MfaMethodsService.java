@@ -68,10 +68,8 @@ public class MfaMethodsService {
 
     public TotpEnrollmentStart startTotpEnrollment(UUID userId, String userEmail) {
         String secret = totp.generateSecret();
-        String encrypted = cipher.encrypt(secret);
-        Instant now = clock.instant();
-        MfaMethod method = getOrCreate(userId, MfaMethodType.TOTP, now);
-        method.setSecret(encrypted);
+        MfaMethod method = getOrCreate(userId, MfaMethodType.TOTP, clock.instant());
+        method.setSecret(cipher.encrypt(secret));
         return new TotpEnrollmentStart(
                 secret, totp.otpauthUri(secret, userEmail), totp.qrCodePngBase64(secret, userEmail));
     }
@@ -110,8 +108,11 @@ public class MfaMethodsService {
     public List<String> regenerateBackupCodes(UUID userId) {
         Instant now = clock.instant();
         MfaMethod method = getOrCreate(userId, MfaMethodType.BACKUP_CODE, now);
+        boolean firstEnrollment = !method.isEnabled();
         List<String> plaintext = backupCodes.regenerate(userId);
-        markEnrolled(method, MfaMethodType.BACKUP_CODE);
+        if (firstEnrollment) {
+            markEnrolled(method, MfaMethodType.BACKUP_CODE);
+        }
         return plaintext;
     }
 
@@ -127,9 +128,6 @@ public class MfaMethodsService {
         }
         MfaMethod method = fetchOrThrow(userId, type);
         method.disable();
-        if (type == MfaMethodType.BACKUP_CODE) {
-            // No plaintext to revoke — hashes stay so replay is impossible.
-        }
     }
 
     @Transactional(readOnly = true)

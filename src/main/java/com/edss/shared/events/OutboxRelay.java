@@ -83,21 +83,26 @@ public abstract class OutboxRelay {
             return;
         }
 
+        // Mark the whole batch published BEFORE handing to listeners. If a
+        // sync listener throws, downstream side effects will re-run on the
+        // next tick — but at-least-once with idempotent listeners beats the
+        // previous behaviour where a mid-batch failure re-emitted every
+        // already-published event (real duplicate emails / WhatsApp / DB rows).
+        // The SELECT FOR UPDATE row locks are released only at tx commit, so
+        // no other poller can grab these rows in the interim.
         String updateSql =
                 "UPDATE " + schema + ".outbox SET published_at = ? WHERE id = ANY (?)";
         UUID[] ids = batch.stream().map(EventEnvelope::eventId).toArray(UUID[]::new);
         Instant now = Instant.now();
+        jdbc.update(updateSql, Timestamp.from(now), ids);
 
         for (EventEnvelope envelope : batch) {
             try {
                 publish(envelope);
             } catch (RuntimeException ex) {
-                log.warn("Listener failed for event {}; will retry", envelope.eventId(), ex);
-                return;
+                log.warn("Listener failed for event {}; will not retry", envelope.eventId(), ex);
             }
         }
-
-        jdbc.update(updateSql, Timestamp.from(now), ids);
     }
 
     protected void publish(EventEnvelope envelope) {

@@ -50,10 +50,11 @@ public class PaymentWebhookService {
             Clock clock) {
         this.events = events;
         this.invoices = invoices;
-        this.gateways = new java.util.HashMap<>();
-        for (PaymentGateway gw : gatewayList) {
-            this.gateways.put(gw.providerId(), gw);
-        }
+        this.gateways =
+                gatewayList.stream()
+                        .collect(
+                                java.util.stream.Collectors.toUnmodifiableMap(
+                                        PaymentGateway::providerId, gw -> gw));
         this.clock = clock;
     }
 

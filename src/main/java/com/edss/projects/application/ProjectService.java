@@ -215,9 +215,7 @@ public class ProjectService {
                             "Upload the unsigned contract before advancing.");
                 }
             }
-            default -> {
-                // Guard-less transitions still land in the audit log.
-            }
+            default -> { /* no exit criteria for this phase */ }
         }
     }
 
