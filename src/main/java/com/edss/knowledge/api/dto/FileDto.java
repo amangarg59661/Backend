@@ -11,4 +11,7 @@ public record FileDto(
         String name,
         long sizeBytes,
         String mimeType,
+        String kind,
+        UUID projectId,
+        UUID milestoneId,
         Instant createdAt) {}

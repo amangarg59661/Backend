@@ -146,6 +146,22 @@ edss:
       key-id: ${RAZORPAY_KEY_ID:}
       key-secret: ${RAZORPAY_KEY_SECRET:}
       webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+  storage:
+    supabase:
+      url: ${SUPABASE_URL:}
+      service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+      bucket-prefix: ${SUPABASE_BUCKET_PREFIX:edss}
+    s3:
+      region: ${AWS_REGION:us-east-1}
+      access-key-id: ${AWS_ACCESS_KEY_ID:}
+      secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
+      bucket: ${AWS_S3_BUCKET:}
+    buckets:
+      contracts: contracts
+      milestones: milestones
+      avatars: avatars
+      files: files
+      tickets: tickets
 
 sentry:
   enabled: ${SENTRY_ENABLED:false}
