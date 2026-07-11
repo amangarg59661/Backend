@@ -12,5 +12,7 @@ public interface TwoFactorChallengeStore {
 
     String issue(UUID userId);
 
+    Optional<UUID> peek(String challengeId);
+
     Optional<UUID> consume(String challengeId);
 }

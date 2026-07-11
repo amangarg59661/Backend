@@ -28,6 +28,12 @@ public class RedisTwoFactorChallengeStore implements TwoFactorChallengeStore {
     }
 
     @Override
+    public Optional<UUID> peek(String challengeId) {
+        String raw = redis.opsForValue().get(KEY_PREFIX + challengeId);
+        return raw == null ? Optional.empty() : Optional.of(UUID.fromString(raw));
+    }
+
+    @Override
     public Optional<UUID> consume(String challengeId) {
         String key = KEY_PREFIX + challengeId;
         String raw = redis.opsForValue().get(key);

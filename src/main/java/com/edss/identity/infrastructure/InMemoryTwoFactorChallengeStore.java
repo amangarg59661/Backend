@@ -24,6 +24,15 @@ public class InMemoryTwoFactorChallengeStore implements TwoFactorChallengeStore 
     }
 
     @Override
+    public Optional<UUID> peek(String challengeId) {
+        Entry entry = challenges.get(challengeId);
+        if (entry == null || entry.expiresAt.isBefore(Instant.now())) {
+            return Optional.empty();
+        }
+        return Optional.of(entry.userId);
+    }
+
+    @Override
     public Optional<UUID> consume(String challengeId) {
         Entry entry = challenges.remove(challengeId);
         if (entry == null || entry.expiresAt.isBefore(Instant.now())) {

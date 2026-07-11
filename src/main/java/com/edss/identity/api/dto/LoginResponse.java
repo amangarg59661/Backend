@@ -4,16 +4,17 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 /**
- * Matches the discriminated union at {@code loginResponseSchema} — when {@code
- * needsTwoFa=true} the client should immediately prompt for the 6-digit code
- * using {@code twoFaChallengeId}. When false all session fields are populated.
- * {@code trustedDeviceToken} is only present when the caller opted into
- * "remember this device" during a 2FA verify.
+ * When {@code needsTwoFa=true} the client must complete the 2FA challenge
+ * before receiving a session. {@code availableMethods} enumerates the
+ * methods the user has enrolled ({@code totp}, {@code whatsapp_otp},
+ * {@code backup_code}); the client picks any one, sends the code to
+ * {@code /auth/2fa/verify}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record LoginResponse(
         boolean needsTwoFa,
         String twoFaChallengeId,
+        List<String> availableMethods,
         String accessToken,
         Long accessTokenExp,
         String refreshToken,
@@ -22,8 +23,9 @@ public record LoginResponse(
         String sessionId,
         String trustedDeviceToken) {
 
-    public static LoginResponse challenge(String challengeId) {
-        return new LoginResponse(true, challengeId, null, null, null, null, null, null, null);
+    public static LoginResponse challenge(String challengeId, List<String> availableMethods) {
+        return new LoginResponse(
+                true, challengeId, availableMethods, null, null, null, null, null, null, null);
     }
 
     public static LoginResponse full(
@@ -36,6 +38,7 @@ public record LoginResponse(
             String trustedDeviceToken) {
         return new LoginResponse(
                 false,
+                null,
                 null,
                 accessToken,
                 accessTokenExp,

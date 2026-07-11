@@ -1,16 +1,22 @@
 package com.edss.identity.api;
 
+import com.edss.identity.api.dto.BackupCodesResponse;
+import com.edss.identity.api.dto.MfaDisableRequest;
+import com.edss.identity.api.dto.MfaMethodDto;
 import com.edss.identity.api.dto.OkResponse;
 import com.edss.identity.api.dto.PasswordChangeRequest;
 import com.edss.identity.api.dto.SessionDto;
 import com.edss.identity.api.dto.TrustedDeviceDto;
 import com.edss.identity.api.dto.TwoFactorCodeRequest;
-import com.edss.identity.api.dto.TwoFactorDisableRequest;
 import com.edss.identity.api.dto.TwoFactorEnrollStartResponse;
+import com.edss.identity.api.dto.WhatsappEnrollStartRequest;
+import com.edss.identity.application.BackupCodeService;
+import com.edss.identity.application.MfaMethodsService;
 import com.edss.identity.application.PasswordChangeService;
 import com.edss.identity.application.SessionService;
 import com.edss.identity.application.TrustedDeviceService;
-import com.edss.identity.application.TwoFactorService;
+import com.edss.identity.domain.MfaMethod;
+import com.edss.identity.domain.MfaMethodType;
 import com.edss.identity.infrastructure.UserRepository;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
@@ -32,8 +38,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Self-service account management for the authenticated user: 2FA
- * enrollment + disablement, password change, active-session inspection +
+ * Self-service account management for the authenticated user: multi-method
+ * 2FA enrollment + disablement, password change, session inspection +
  * revocation, trusted-device list + revocation.
  */
 @RestController
@@ -43,7 +49,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class SelfServiceController {
 
     private final UserRepository users;
-    private final TwoFactorService twoFactor;
+    private final MfaMethodsService mfa;
+    private final BackupCodeService backupCodes;
     private final PasswordChangeService passwordChange;
     private final SessionService sessionService;
     private final TrustedDeviceService trustedDevices;
@@ -51,49 +58,116 @@ public class SelfServiceController {
 
     public SelfServiceController(
             UserRepository users,
-            TwoFactorService twoFactor,
+            MfaMethodsService mfa,
+            BackupCodeService backupCodes,
             PasswordChangeService passwordChange,
             SessionService sessionService,
             TrustedDeviceService trustedDevices,
             FeaturesProperties features) {
         this.users = users;
-        this.twoFactor = twoFactor;
+        this.mfa = mfa;
+        this.backupCodes = backupCodes;
         this.passwordChange = passwordChange;
         this.sessionService = sessionService;
         this.trustedDevices = trustedDevices;
         this.features = features;
     }
 
-    @PostMapping("/2fa/enroll/start")
-    public TwoFactorEnrollStartResponse startEnrollment(
+    // ---------------------------------------------------------------------
+    // 2FA methods listing + disable
+    // ---------------------------------------------------------------------
+
+    @GetMapping("/2fa/methods")
+    public List<MfaMethodDto> listMethods(@AuthenticationPrincipal AuthenticatedUser principal) {
+        UUID userId = principal.userId();
+        return mfa.listAll(userId).stream()
+                .map(
+                        m ->
+                                new MfaMethodDto(
+                                        m.getId(),
+                                        m.getMethodType().wire(),
+                                        m.isEnabled(),
+                                        m.getPhoneE164(),
+                                        m.getEnrolledAt(),
+                                        m.getMethodType() == MfaMethodType.BACKUP_CODE
+                                                ? backupCodes.remaining(userId)
+                                                : null))
+                .toList();
+    }
+
+    @DeleteMapping("/2fa/methods/{methodType}")
+    public OkResponse disableMethod(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable String methodType,
+            @Valid @RequestBody MfaDisableRequest req) {
+        mfa.disable(principal.userId(), MfaMethodType.ofWire(methodType), req.password());
+        return OkResponse.instance();
+    }
+
+    // ---------------------------------------------------------------------
+    // TOTP enrollment
+    // ---------------------------------------------------------------------
+
+    @PostMapping("/2fa/totp/enroll/start")
+    public TwoFactorEnrollStartResponse startTotpEnrollment(
             @AuthenticationPrincipal AuthenticatedUser principal) {
         requireEnrollmentEnabled();
         UUID userId = principal.userId();
         String email =
                 users.findById(userId)
                         .map(u -> u.getEmail())
-                        .orElseThrow(() -> new ApiException(ApiErrorCode.NOT_FOUND, "User not found."));
-        TwoFactorService.EnrollmentStart start = twoFactor.startEnrollment(userId, email);
+                        .orElseThrow(
+                                () -> new ApiException(ApiErrorCode.NOT_FOUND, "User not found."));
+        MfaMethodsService.TotpEnrollmentStart start = mfa.startTotpEnrollment(userId, email);
         return new TwoFactorEnrollStartResponse(
                 start.secret(), start.otpauthUri(), start.qrCodePngBase64());
     }
 
-    @PostMapping("/2fa/enroll/verify")
-    public OkResponse verifyEnrollment(
+    @PostMapping("/2fa/totp/enroll/verify")
+    public OkResponse verifyTotpEnrollment(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody TwoFactorCodeRequest req) {
         requireEnrollmentEnabled();
-        twoFactor.verifyEnrollment(principal.userId(), req.code());
+        mfa.verifyTotpEnrollment(principal.userId(), req.code());
         return OkResponse.instance();
     }
 
-    @PostMapping("/2fa/disable")
-    public OkResponse disable(
+    // ---------------------------------------------------------------------
+    // WhatsApp OTP enrollment
+    // ---------------------------------------------------------------------
+
+    @PostMapping("/2fa/whatsapp/enroll/start")
+    public OkResponse startWhatsappEnrollment(
             @AuthenticationPrincipal AuthenticatedUser principal,
-            @Valid @RequestBody TwoFactorDisableRequest req) {
-        twoFactor.disable(principal.userId(), req.password(), req.code());
+            @Valid @RequestBody WhatsappEnrollStartRequest req) {
+        requireEnrollmentEnabled();
+        mfa.startWhatsappEnrollment(principal.userId(), req.phoneE164());
         return OkResponse.instance();
     }
+
+    @PostMapping("/2fa/whatsapp/enroll/verify")
+    public OkResponse verifyWhatsappEnrollment(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @Valid @RequestBody TwoFactorCodeRequest req) {
+        requireEnrollmentEnabled();
+        mfa.verifyWhatsappEnrollment(principal.userId(), req.code());
+        return OkResponse.instance();
+    }
+
+    // ---------------------------------------------------------------------
+    // Backup codes
+    // ---------------------------------------------------------------------
+
+    @PostMapping("/2fa/backup-codes/regenerate")
+    public BackupCodesResponse regenerateBackupCodes(
+            @AuthenticationPrincipal AuthenticatedUser principal) {
+        requireEnrollmentEnabled();
+        return new BackupCodesResponse(mfa.regenerateBackupCodes(principal.userId()));
+    }
+
+    // ---------------------------------------------------------------------
+    // Password change + sessions + trusted devices
+    // ---------------------------------------------------------------------
 
     @PostMapping("/password/change")
     public OkResponse changePassword(

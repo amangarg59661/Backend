@@ -64,10 +64,18 @@ public class AuthController {
             @Valid @RequestBody TwoFaVerifyRequest req, HttpServletRequest http) {
         return auth.verifyTwoFactor(
                 req.challengeId(),
+                req.method(),
                 req.code(),
                 req.rememberDevice(),
                 clientIp(http),
                 userAgent(http));
+    }
+
+    @PostMapping("/2fa/whatsapp/send")
+    public OkResponse sendWhatsappOtp(
+            @Valid @RequestBody com.edss.identity.api.dto.WhatsappOtpChallengeRequest req) {
+        auth.requestWhatsappOtp(req.challengeId());
+        return OkResponse.instance();
     }
 
     @PostMapping("/forgot-password")

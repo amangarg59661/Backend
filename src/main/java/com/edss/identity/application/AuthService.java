@@ -3,6 +3,8 @@ package com.edss.identity.application;
 import com.edss.identity.api.dto.LoginResponse;
 import com.edss.identity.api.dto.RefreshResponse;
 import com.edss.identity.api.dto.UserDto;
+import com.edss.identity.domain.MfaMethod;
+import com.edss.identity.domain.MfaMethodType;
 import com.edss.identity.domain.Session;
 import com.edss.identity.domain.User;
 import com.edss.identity.domain.events.IdentityEvents;
@@ -21,6 +23,7 @@ import com.edss.shared.ratelimit.RateLimiter;
 import com.edss.shared.security.JwtService;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,8 +45,7 @@ public class AuthService {
     private final SessionRepository sessions;
     private final RefreshTokenStore refreshTokens;
     private final TwoFactorChallengeStore twoFactorChallenges;
-    private final TwoFactorService twoFactor;
-    private final TotpService totp;
+    private final MfaMethodsService mfa;
     private final TrustedDeviceService trustedDevices;
     private final SessionService sessionService;
     private final PasswordEncoder passwordEncoder;
@@ -60,8 +62,7 @@ public class AuthService {
             SessionRepository sessions,
             RefreshTokenStore refreshTokens,
             TwoFactorChallengeStore twoFactorChallenges,
-            TwoFactorService twoFactor,
-            TotpService totp,
+            MfaMethodsService mfa,
             TrustedDeviceService trustedDevices,
             SessionService sessionService,
             PasswordEncoder passwordEncoder,
@@ -76,8 +77,7 @@ public class AuthService {
         this.sessions = sessions;
         this.refreshTokens = refreshTokens;
         this.twoFactorChallenges = twoFactorChallenges;
-        this.twoFactor = twoFactor;
-        this.totp = totp;
+        this.mfa = mfa;
         this.trustedDevices = trustedDevices;
         this.sessionService = sessionService;
         this.passwordEncoder = passwordEncoder;
@@ -107,20 +107,47 @@ public class AuthService {
             throw new ApiException(ApiErrorCode.FORBIDDEN, "Account is not active.");
         }
 
-        if (isTwoFactorRequired(user) && !trustedDevices.isTrusted(user.getId(), trustedDeviceToken)) {
+        List<MfaMethod> enabled = mfa.listEnabled(user.getId());
+        boolean needsTwoFa =
+                (features.auth().twoFactor() || !enabled.isEmpty())
+                        && !trustedDevices.isTrusted(user.getId(), trustedDeviceToken);
+        if (needsTwoFa && enabled.isEmpty()) {
+            // Global flag forces 2FA but user never enrolled — fail loudly so
+            // they hit the settings screen instead of a silent lockout.
+            throw new ApiException(
+                    ApiErrorCode.FORBIDDEN,
+                    "Two-factor is required. Enroll a method in your account settings.");
+        }
+        if (needsTwoFa) {
             String challengeId = twoFactorChallenges.issue(user.getId());
-            return LoginResponse.challenge(challengeId);
+            List<String> availableMethods = new ArrayList<>();
+            for (MfaMethod m : enabled) {
+                availableMethods.add(m.getMethodType().wire());
+            }
+            return LoginResponse.challenge(challengeId, availableMethods);
         }
 
         return issueFullSession(user, ipAddress, userAgent, false);
     }
 
+    /**
+     * Verify a chosen 2FA method's code + optionally issue a trusted-device
+     * token. WhatsApp OTP calls this AFTER the client has already fetched the
+     * OTP via {@link #requestWhatsappOtp(String)}.
+     */
     public LoginResponse verifyTwoFactor(
             String challengeId,
+            String methodWire,
             String code,
             boolean rememberDevice,
             String ipAddress,
             String userAgent) {
+        MfaMethodType requestedType;
+        try {
+            requestedType = MfaMethodType.ofWire(methodWire);
+        } catch (IllegalArgumentException ex) {
+            throw new ApiException(ApiErrorCode.VALIDATION_FAILED, "Unknown MFA method.");
+        }
         Optional<UUID> userId = twoFactorChallenges.consume(challengeId);
         if (userId.isEmpty()) {
             throw new ApiException(ApiErrorCode.INVALID_TOTP, "Challenge expired.");
@@ -131,18 +158,45 @@ public class AuthService {
                                 () ->
                                         new ApiException(
                                                 ApiErrorCode.INVALID_TOTP, "Challenge expired."));
-        String secret =
-                twoFactor
-                        .decryptSecret(user.getId())
-                        .orElseThrow(
-                                () ->
-                                        new ApiException(
-                                                ApiErrorCode.INVALID_TOTP,
-                                                "2FA not enrolled."));
-        if (!totp.verify(secret, code)) {
+
+        boolean ok =
+                switch (requestedType) {
+                    case TOTP -> mfa.findEnabled(user.getId(), MfaMethodType.TOTP)
+                            .map(m -> mfa.verifyTotpForLogin(m, code))
+                            .orElse(false);
+                    case WHATSAPP_OTP -> mfa.findEnabled(user.getId(), MfaMethodType.WHATSAPP_OTP)
+                            .map(m -> mfa.verifyWhatsappForLogin(m, code))
+                            .orElse(false);
+                    case BACKUP_CODE -> mfa.findEnabled(user.getId(), MfaMethodType.BACKUP_CODE)
+                            .map(m -> mfa.verifyBackupCodeForLogin(user.getId(), code))
+                            .orElse(false);
+                };
+        if (!ok) {
             throw new ApiException(ApiErrorCode.INVALID_TOTP, "Incorrect code.");
         }
         return issueFullSession(user, ipAddress, userAgent, rememberDevice);
+    }
+
+    /**
+     * Client requests a WhatsApp OTP be sent as part of a live login challenge.
+     * The challenge remains valid; verifyTwoFactor consumes it later.
+     */
+    public void requestWhatsappOtp(String challengeId) {
+        UUID userId =
+                twoFactorChallenges
+                        .peek(challengeId)
+                        .orElseThrow(
+                                () ->
+                                        new ApiException(
+                                                ApiErrorCode.INVALID_TOTP, "Challenge expired."));
+        MfaMethod method =
+                mfa.findEnabled(userId, MfaMethodType.WHATSAPP_OTP)
+                        .orElseThrow(
+                                () ->
+                                        new ApiException(
+                                                ApiErrorCode.NOT_FOUND,
+                                                "WhatsApp OTP not enrolled."));
+        mfa.issueWhatsappOtpForLogin(method);
     }
 
     public RefreshResponse refresh(String refreshToken) {
@@ -247,11 +301,6 @@ public class AuthService {
                 perms,
                 sessionId.toString(),
                 trustedDeviceToken);
-    }
-
-    /** Global flag OR user-level enrollment enables 2FA on login. */
-    private boolean isTwoFactorRequired(User user) {
-        return features.auth().twoFactor() || twoFactor.isEnabled(user.getId());
     }
 
     private void enforceLoginRateLimit(String email, String ipAddress) {
