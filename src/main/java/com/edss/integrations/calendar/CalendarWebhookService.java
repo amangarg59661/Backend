@@ -2,7 +2,7 @@ package com.edss.integrations.calendar;
 
 import com.edss.integrations.calendar.domain.CalendarWebhookEvent;
 import com.edss.integrations.calendar.infrastructure.CalendarWebhookEventRepository;
-import com.edss.projects.application.OnboardingCallService;
+import com.edss.projects.spi.OnboardingCallScheduler;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
 import java.time.Clock;
@@ -30,13 +30,13 @@ public class CalendarWebhookService {
     private static final Logger log = LoggerFactory.getLogger(CalendarWebhookService.class);
 
     private final CalendarWebhookEventRepository events;
-    private final OnboardingCallService onboardingCalls;
+    private final OnboardingCallScheduler onboardingCalls;
     private final Map<String, CalendarWebhookClient> clients;
     private final Clock clock;
 
     public CalendarWebhookService(
             CalendarWebhookEventRepository events,
-            OnboardingCallService onboardingCalls,
+            OnboardingCallScheduler onboardingCalls,
             List<CalendarWebhookClient> clientList,
             Clock clock) {
         this.events = events;
@@ -83,7 +83,7 @@ public class CalendarWebhookService {
 
         try {
             if (isBookingEvent(verified.eventType()) && verified.projectId() != null && verified.scheduledAt() != null) {
-                onboardingCalls.createOrUpdate(
+                onboardingCalls.schedule(
                         verified.projectId(),
                         provider,
                         verified.scheduledAt(),

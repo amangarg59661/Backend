@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional
-public class OnboardingCallService {
+public class OnboardingCallService implements com.edss.projects.spi.OnboardingCallScheduler {
 
     private static final java.util.Set<String> ALLOWED_PROVIDERS =
             java.util.Set.of("calcom", "calendly", "manual");
@@ -29,6 +29,16 @@ public class OnboardingCallService {
         this.calls = calls;
         this.outbox = outbox;
         this.clock = clock;
+    }
+
+    @Override
+    public void schedule(
+            UUID projectId,
+            String provider,
+            Instant scheduledAt,
+            String meetingUrl,
+            String externalRef) {
+        createOrUpdate(projectId, provider, scheduledAt, meetingUrl, externalRef);
     }
 
     public OnboardingCall createOrUpdate(
