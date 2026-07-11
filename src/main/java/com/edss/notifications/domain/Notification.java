@@ -29,6 +29,12 @@ public class Notification {
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
+    @Column(name = "channel_mask")
+    private int channelMask;
+
+    @Column(name = "event_type")
+    private String eventType;
+
     protected Notification() {}
 
     public Notification(
@@ -39,6 +45,19 @@ public class Notification {
             String body,
             String href,
             Instant createdAt) {
+        this(id, userId, severity, title, body, href, createdAt, 0, null);
+    }
+
+    public Notification(
+            UUID id,
+            UUID userId,
+            String severity,
+            String title,
+            String body,
+            String href,
+            Instant createdAt,
+            int channelMask,
+            String eventType) {
         this.id = id;
         this.userId = userId;
         this.severity = severity;
@@ -47,6 +66,8 @@ public class Notification {
         this.href = href;
         this.read = false;
         this.createdAt = createdAt;
+        this.channelMask = channelMask;
+        this.eventType = eventType;
     }
 
     public UUID getId() {
@@ -79,5 +100,21 @@ public class Notification {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public int getChannelMask() {
+        return channelMask;
+    }
+
+    public String getEventType() {
+        return eventType;
+    }
+
+    public void markRead() {
+        this.read = true;
+    }
+
+    public void addChannel(int bit) {
+        this.channelMask |= bit;
     }
 }

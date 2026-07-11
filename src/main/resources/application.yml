@@ -146,6 +146,11 @@ edss:
       key-id: ${RAZORPAY_KEY_ID:}
       key-secret: ${RAZORPAY_KEY_SECRET:}
       webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+  messaging:
+    twilio:
+      account-sid: ${TWILIO_ACCOUNT_SID:}
+      auth-token: ${TWILIO_AUTH_TOKEN:}
+      whatsapp-from: ${TWILIO_WHATSAPP_FROM:}
   storage:
     supabase:
       url: ${SUPABASE_URL:}
@@ -162,6 +167,25 @@ edss:
       avatars: avatars
       files: files
       tickets: tickets
+  notifications:
+    routing:
+      identity.password_reset_requested: [email]
+      identity.user_registered: [email, in_app]
+      relationship.inquiry_converted: [email, in_app]
+      projects.project_created: [email, in_app]
+      projects.phase_transitioned: [in_app]
+      projects.milestone_submitted: [email, in_app, whatsapp]
+      projects.milestone_reviewed: [email, in_app]
+      projects.contract_uploaded: [email, in_app]
+      projects.onboarding_scheduled: [email, in_app]
+      projects.maintenance_started: [email, in_app]
+      projects.project_closed: [email, in_app]
+      finance.invoice_issued: [email, in_app, whatsapp]
+      finance.invoice_paid: [email, in_app]
+      finance.invoice_voided: [email, in_app]
+      commitments.ticket_opened: [email, in_app]
+      commitments.ticket_replied: [email, in_app]
+      commitments.ticket_status_changed: [in_app]
 
 sentry:
   enabled: ${SENTRY_ENABLED:false}

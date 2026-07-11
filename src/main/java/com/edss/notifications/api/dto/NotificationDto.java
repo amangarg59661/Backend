@@ -13,4 +13,5 @@ public record NotificationDto(
         String body,
         boolean read,
         Instant createdAt,
-        String href) {}
+        String href,
+        String eventType) {}
