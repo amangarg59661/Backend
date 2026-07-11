@@ -151,6 +151,17 @@ edss:
       account-sid: ${TWILIO_ACCOUNT_SID:}
       auth-token: ${TWILIO_AUTH_TOKEN:}
       whatsapp-from: ${TWILIO_WHATSAPP_FROM:}
+  calendar:
+    calcom:
+      api-key: ${CALCOM_API_KEY:}
+      webhook-secret: ${CALCOM_WEBHOOK_SECRET:}
+    calendly:
+      api-key: ${CALENDLY_API_KEY:}
+      webhook-secret: ${CALENDLY_WEBHOOK_SECRET:}
+    google:
+      oauth-client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+      oauth-client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
+      redirect-uri: ${GOOGLE_OAUTH_REDIRECT_URI:http://localhost:8080/api/v1/integrations/google/callback}
   storage:
     supabase:
       url: ${SUPABASE_URL:}
