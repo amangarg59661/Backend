@@ -139,6 +139,11 @@ public class AuthService {
             boolean rememberDevice,
             String ipAddress,
             String userAgent) {
+        // Bind attempts to the challenge id so a brute-force grinder is capped
+        // per session rather than per user. 5 verifications per 15 minutes lets
+        // legitimate typos through and shuts down guessing.
+        enforceAuthRateLimit(
+                "2fa:verify", challengeId, 5, java.time.Duration.ofMinutes(15));
         MfaMethodType requestedType;
         try {
             requestedType = MfaMethodType.ofWire(methodWire);
@@ -189,6 +194,13 @@ public class AuthService {
                                 () ->
                                         new ApiException(
                                                 ApiErrorCode.INVALID_TOTP, "Challenge expired."));
+        // Cap per-challenge (2 sends per 15 min → single retry) and per-user
+        // (3 per hour → daily cost sanity). Toll fraud vector is closed by
+        // the combination.
+        enforceAuthRateLimit(
+                "wa_otp:chal", challengeId, 2, java.time.Duration.ofMinutes(15));
+        enforceAuthRateLimit(
+                "wa_otp:user", userId.toString(), 3, java.time.Duration.ofHours(1));
         MfaMethod method =
                 mfa.findEnabled(userId, MfaMethodType.WHATSAPP_OTP)
                         .orElseThrow(
@@ -200,6 +212,9 @@ public class AuthService {
     }
 
     public RefreshResponse refresh(String refreshToken) {
+        // Cheap DoS shield on refresh; caps per-token grind.
+        enforceAuthRateLimit(
+                "refresh:token", refreshToken, 5, java.time.Duration.ofMinutes(15));
         RefreshTokenStore.Stored stored =
                 refreshTokens
                         .consume(refreshToken)
@@ -301,6 +316,24 @@ public class AuthService {
                 perms,
                 sessionId.toString(),
                 trustedDeviceToken);
+    }
+
+    /**
+     * Shared limiter for sensitive auth endpoints (2FA verify, WhatsApp OTP
+     * send, refresh, forgot, reset). Feature flag mirrors the login limiter.
+     */
+    private void enforceAuthRateLimit(String bucket, String key, int limit, java.time.Duration window) {
+        if (!features.auth().rateLimit()) {
+            return;
+        }
+        RateLimitDecision decision = rateLimiter.hit(bucket + ":" + key, limit, window);
+        if (!decision.allowed()) {
+            log.info("Auth rate limit hit for {}={}", bucket, key);
+            throw new ApiException(
+                    ApiErrorCode.RATE_LIMITED,
+                    "Too many attempts. Try again later.",
+                    Map.of("retry_after", decision.retryAfter().getSeconds()));
+        }
     }
 
     private void enforceLoginRateLimit(String email, String ipAddress) {

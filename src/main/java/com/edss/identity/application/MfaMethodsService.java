@@ -9,6 +9,8 @@ import com.edss.identity.infrastructure.UserRepository;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
 import com.edss.shared.events.OutboxWriter;
+import com.edss.shared.ratelimit.RateLimitDecision;
+import com.edss.shared.ratelimit.RateLimiter;
 import com.edss.shared.security.SecretCipher;
 import java.time.Clock;
 import java.time.Instant;
@@ -41,6 +43,7 @@ public class MfaMethodsService {
     private final SecretCipher cipher;
     private final PasswordEncoder passwordEncoder;
     private final OutboxWriter outbox;
+    private final RateLimiter rateLimiter;
     private final Clock clock;
 
     public MfaMethodsService(
@@ -52,6 +55,7 @@ public class MfaMethodsService {
             SecretCipher cipher,
             PasswordEncoder passwordEncoder,
             OutboxWriter outbox,
+            RateLimiter rateLimiter,
             Clock clock) {
         this.users = users;
         this.methods = methods;
@@ -61,6 +65,7 @@ public class MfaMethodsService {
         this.cipher = cipher;
         this.passwordEncoder = passwordEncoder;
         this.outbox = outbox;
+        this.rateLimiter = rateLimiter;
         this.clock = clock;
     }
 
@@ -88,10 +93,42 @@ public class MfaMethodsService {
     // ----- WhatsApp OTP -----
 
     public void startWhatsappEnrollment(UUID userId, String phoneE164) {
+        // Toll-fraud caps. Per-user + per-phone limits close the vector where
+        // an authenticated account is used to WhatsApp-blast arbitrary numbers.
+        enforcePerUserOtpQuota(userId);
+        enforcePerPhoneOtpQuota(phoneE164);
         Instant now = clock.instant();
         MfaMethod method = getOrCreate(userId, MfaMethodType.WHATSAPP_OTP, now);
         method.setPhone(phoneE164);
         whatsappOtp.issueOtp(userId, phoneE164, "enroll");
+    }
+
+    private void enforcePerUserOtpQuota(UUID userId) {
+        RateLimitDecision decision =
+                rateLimiter.hit(
+                        "wa_enroll:user:" + userId,
+                        3,
+                        java.time.Duration.ofHours(1));
+        if (!decision.allowed()) {
+            throw new ApiException(
+                    ApiErrorCode.RATE_LIMITED,
+                    "Too many WhatsApp enrolment attempts. Try again later.",
+                    java.util.Map.of("retry_after", decision.retryAfter().getSeconds()));
+        }
+    }
+
+    private void enforcePerPhoneOtpQuota(String phoneE164) {
+        RateLimitDecision decision =
+                rateLimiter.hit(
+                        "wa_enroll:phone:" + phoneE164,
+                        5,
+                        java.time.Duration.ofDays(1));
+        if (!decision.allowed()) {
+            throw new ApiException(
+                    ApiErrorCode.RATE_LIMITED,
+                    "That phone has hit the daily WhatsApp OTP cap.",
+                    java.util.Map.of("retry_after", decision.retryAfter().getSeconds()));
+        }
     }
 
     public void verifyWhatsappEnrollment(UUID userId, String code) {

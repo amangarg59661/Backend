@@ -8,6 +8,8 @@ import com.edss.identity.infrastructure.UserRepository;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
 import com.edss.shared.events.OutboxWriter;
+import com.edss.shared.ratelimit.RateLimitDecision;
+import com.edss.shared.ratelimit.RateLimiter;
 import com.edss.shared.security.EphemeralSecrets;
 import com.edss.shared.security.TokenHashing;
 import java.time.Clock;
@@ -35,6 +37,7 @@ public class PasswordResetService {
     private final PasswordHistoryService history;
     private final OutboxWriter outbox;
     private final EphemeralSecrets ephemeralSecrets;
+    private final RateLimiter rateLimiter;
     private final Clock clock;
 
     public PasswordResetService(
@@ -44,6 +47,7 @@ public class PasswordResetService {
             PasswordHistoryService history,
             OutboxWriter outbox,
             EphemeralSecrets ephemeralSecrets,
+            RateLimiter rateLimiter,
             Clock clock) {
         this.users = users;
         this.tokens = tokens;
@@ -51,6 +55,7 @@ public class PasswordResetService {
         this.history = history;
         this.outbox = outbox;
         this.ephemeralSecrets = ephemeralSecrets;
+        this.rateLimiter = rateLimiter;
         this.clock = clock;
     }
 
@@ -59,6 +64,17 @@ public class PasswordResetService {
      * {@code password_reset_requested} event only when the user is real.
      */
     public void requestReset(String email) {
+        // 3 forgot requests per email per hour absorbs typos but denies spraying.
+        RateLimitDecision decision =
+                rateLimiter.hit(
+                        "forgot:email:" + email.toLowerCase(),
+                        3,
+                        java.time.Duration.ofHours(1));
+        if (!decision.allowed()) {
+            log.info("Forgot-password rate limit hit for email={}", email);
+            // Silent absorb — never expose whether email exists.
+            return;
+        }
         Optional<User> maybeUser = users.findByEmailIgnoreCase(email);
         if (maybeUser.isEmpty()) {
             return;
@@ -92,6 +108,18 @@ public class PasswordResetService {
     }
 
     public void resetPassword(String plaintextToken, String newPassword) {
+        // Cap grinds against a captured hash-target.
+        RateLimitDecision decision =
+                rateLimiter.hit(
+                        "reset:token:" + plaintextToken,
+                        5,
+                        java.time.Duration.ofMinutes(15));
+        if (!decision.allowed()) {
+            throw new ApiException(
+                    ApiErrorCode.RATE_LIMITED,
+                    "Too many attempts. Try again later.",
+                    java.util.Map.of("retry_after", decision.retryAfter().getSeconds()));
+        }
         String hash = TokenHashing.sha256UrlBase64(plaintextToken);
         PasswordResetToken token =
                 tokens.findByTokenHash(hash)
