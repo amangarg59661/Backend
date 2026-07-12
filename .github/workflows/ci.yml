@@ -39,3 +39,112 @@ jobs:
         with:
           name: surefire-reports
           path: target/surefire-reports
+
+  # CI-01: OWASP Dependency Check — flags known CVEs in the Maven graph.
+  # Runs in parallel with build so a failing scan doesn't block seeing
+  # test results, but a hit still fails the workflow overall.
+  dependency-check:
+    name: dependency CVE scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: self-backend
+          path: '.'
+          format: 'HTML'
+          # CVSS >= 7 (High) fails the job. Lower severities are surfaced in the
+          # report artifact for triage.
+          args: >
+            --failOnCVSS 7
+            --enableRetired
+            --nvdApiKey ${{ secrets.NVD_API_KEY }}
+
+      - name: Upload dependency report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: reports
+
+  # CI-02: SpotBugs + FindSecBugs — SAST for the Java sources.
+  sast:
+    name: spotbugs SAST
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: SpotBugs
+        run: mvn -B -ntp -DskipTests com.github.spotbugs:spotbugs-maven-plugin:4.8.3.0:check
+        continue-on-error: false
+
+  # CI-03: CodeQL — GitHub-native SAST covering Java.
+  codeql:
+    name: codeql
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+
+      - name: Build for CodeQL
+        run: mvn -B -ntp -DskipTests package
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+  # CI-07: Trivy — filesystem + dependency scan.
+  trivy:
+    name: trivy fs scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Upload Trivy scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'

@@ -31,6 +31,7 @@ import org.springframework.stereotype.Component;
 public class SupabaseStorageClient implements StorageClient {
 
     private static final Logger log = LoggerFactory.getLogger(SupabaseStorageClient.class);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final ObjectMapper objectMapper;
@@ -63,6 +64,7 @@ public class SupabaseStorageClient implements StorageClient {
         }
         HttpRequest req =
                 HttpRequest.newBuilder(URI.create(config.url() + path))
+                        .timeout(REQUEST_TIMEOUT)
                         .header("Authorization", "Bearer " + config.serviceRoleKey())
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
@@ -88,6 +90,7 @@ public class SupabaseStorageClient implements StorageClient {
         }
         HttpRequest req =
                 HttpRequest.newBuilder(URI.create(config.url() + path))
+                        .timeout(REQUEST_TIMEOUT)
                         .header("Authorization", "Bearer " + config.serviceRoleKey())
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
@@ -105,6 +108,7 @@ public class SupabaseStorageClient implements StorageClient {
         String path = "/storage/v1/object/" + prefixed + "/" + key;
         HttpRequest req =
                 HttpRequest.newBuilder(URI.create(config.url() + path))
+                        .timeout(REQUEST_TIMEOUT)
                         .header("Authorization", "Bearer " + config.serviceRoleKey())
                         .DELETE()
                         .build();

@@ -28,6 +28,7 @@ import org.springframework.stereotype.Component;
 public class TwilioWhatsappClient {
 
     private static final Logger log = LoggerFactory.getLogger(TwilioWhatsappClient.class);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final ObjectMapper objectMapper;
@@ -64,6 +65,7 @@ public class TwilioWhatsappClient {
                         .encodeToString((config.accountSid() + ":" + config.authToken()).getBytes(StandardCharsets.UTF_8));
         HttpRequest req =
                 HttpRequest.newBuilder(URI.create(url))
+                        .timeout(REQUEST_TIMEOUT)
                         .header("Authorization", "Basic " + auth)
                         .header("Content-Type", "application/x-www-form-urlencoded")
                         .POST(HttpRequest.BodyPublishers.ofString(form, StandardCharsets.UTF_8))

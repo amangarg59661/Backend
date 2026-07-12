@@ -7,6 +7,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,6 +33,15 @@ public abstract class OutboxRelay {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher publisher;
     private final OutboxProperties properties;
+    /**
+     * PF-01 adaptive backoff. Base @Scheduled cadence is fast (250 ms) to keep
+     * latency low under load, but wasteful on an idle DB. Each empty poll
+     * increments the skip budget so an idle backend polls at up to 5 s
+     * effective cadence. Any hit resets to zero → back to fast poll instantly.
+     */
+    private static final int MAX_SKIP_TICKS = 20;
+    private final AtomicInteger consecutiveEmpty = new AtomicInteger(0);
+    private final AtomicInteger ticksToSkip = new AtomicInteger(0);
 
     protected OutboxRelay(
             String schema,
@@ -48,6 +58,9 @@ public abstract class OutboxRelay {
 
     @Transactional(propagation = Propagation.REQUIRED)
     public void drainOnce() {
+        if (ticksToSkip.getAndUpdate(v -> Math.max(0, v - 1)) > 0) {
+            return;
+        }
         String selectSql =
                 "SELECT id, event_type, event_version, aggregate_type, aggregate_id, payload,"
                         + " occurred_at, trace_id FROM "
@@ -80,8 +93,12 @@ public abstract class OutboxRelay {
                         properties.batchSize());
 
         if (batch.isEmpty()) {
+            int empty = consecutiveEmpty.incrementAndGet();
+            ticksToSkip.set(Math.min(MAX_SKIP_TICKS, empty));
             return;
         }
+        consecutiveEmpty.set(0);
+        ticksToSkip.set(0);
 
         // Mark the whole batch published BEFORE handing to listeners. If a
         // sync listener throws, downstream side effects will re-run on the

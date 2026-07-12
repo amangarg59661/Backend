@@ -46,6 +46,8 @@ public class GoogleCalendarClient {
     private static final String EVENTS_URL =
             "https://www.googleapis.com/calendar/v3/calendars/primary/events";
     private static final String SCOPE = "https://www.googleapis.com/auth/calendar.events";
+    /** PF-08 / PF-09: cap each request so a hung Google endpoint cannot pin a worker thread. */
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final ObjectMapper objectMapper;
@@ -135,6 +137,7 @@ public class GoogleCalendarClient {
                                                     scheduledAt.plusSeconds(3600).toString())));
             HttpRequest req =
                     HttpRequest.newBuilder(URI.create(EVENTS_URL))
+                            .timeout(REQUEST_TIMEOUT)
                             .header("Authorization", "Bearer " + accessToken)
                             .header("Content-Type", "application/json")
                             .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
@@ -176,6 +179,7 @@ public class GoogleCalendarClient {
     private JsonNode post(String url, String form, String bearer) {
         HttpRequest.Builder builder =
                 HttpRequest.newBuilder(URI.create(url))
+                        .timeout(REQUEST_TIMEOUT)
                         .header("Content-Type", "application/x-www-form-urlencoded")
                         .POST(HttpRequest.BodyPublishers.ofString(form, StandardCharsets.UTF_8));
         if (bearer != null) {
