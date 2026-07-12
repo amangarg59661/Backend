@@ -1,5 +1,7 @@
 # Self_Backend_v1 — Remediation Plan
 
+**Status (Phase D closeout, 2026-07-12):** 12 fix batches landed on `audit-remediation`. Wave 1 code-fix: 16/16 done. Wave 2 code-fix: 24/33 done (remaining are Wave 3 client-owned or design refactor). 44 unit tests green, Modulith verify green. Commit index in `risk-register.md` "Phase D — Remediation Status" section.
+
 Baseline: `7ba4e12` on `main`. Working branch: `audit-remediation`. Compiled from `risk-register.md`.
 
 The engagement's commitment is full remediation. 112 deduplicated findings across four dimensions is a very wide surface, and the AEOS review pipeline requires every fix to pass peer / senior / architect / security / QA / documentation review before merge (`config/workflows.yaml`). Honouring both the commitment and the review pipeline means we are honest with the client about what a single engagement window can safely land vs. what belongs on a client-owned backlog with explicit sign-off — per `identity.yaml`, an unhonoured promise is a greater failure than a delayed one.
