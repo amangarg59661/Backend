@@ -64,10 +64,28 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # O-01: prometheus scrape endpoint. Bind /actuator to an internal
+        # port in prod behind a firewall — never public.
+        include: health,info,prometheus,metrics
   endpoint:
     health:
-      show-details: never
+      show-details: when_authorized
+      group:
+        readiness:
+          include: db,redis,diskSpace,ping
+  metrics:
+    tags:
+      application: self-backend
+      env: ${SENTRY_ENVIRONMENT:dev}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,300ms,1s
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 
 edss:
   features:

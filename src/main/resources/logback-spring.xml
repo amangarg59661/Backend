@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    O-03: JSON logs on prod, human-readable console on dev/test.
+
+    Log aggregators (Datadog, ELK, CloudWatch, Sentry attachments) want
+    structured JSON with named fields. Console pretty-print stays on dev so a
+    local run remains grep-friendly.
+-->
+<configuration>
+
+    <springProperty scope="context" name="applicationName" source="spring.application.name" defaultValue="self-backend"/>
+    <springProperty scope="context" name="activeProfile" source="spring.profiles.active" defaultValue="dev"/>
+
+    <!-- Console appender for dev / test — pattern layout. -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-}/%X{X-Request-Id:-}] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- JSON appender for prod. logstash-logback-encoder ships timestamp,
+         level, logger, message, thread, MDC (X-Request-Id, traceId), stack trace. -->
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>X-Request-Id</includeMdcKeyName>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>sessionId</includeMdcKeyName>
+            <customFields>{"app":"${applicationName}","env":"${activeProfile}"}</customFields>
+        </encoder>
+    </appender>
+
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+</configuration>
