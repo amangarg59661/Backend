@@ -22,7 +22,21 @@ public class PermissionCatalog {
     private static final Map<Role, List<String>> GRANTS =
             Map.of(
                     Role.ADMIN,
-                    List.of("admin:*"),
+                    // admin:* covers admin-owned resources (governance, audit
+                    // trails). Domain wildcards granted explicitly so a rogue
+                    // "admin:*" grant elsewhere cannot silently mutate finance
+                    // / commitments / projects state without opt-in.
+                    // admin:override is the break-glass grant; do not seed it
+                    // by default even to admin.
+                    List.of(
+                            "admin:*",
+                            "projects:*",
+                            "finance:*",
+                            "commitments:*",
+                            "knowledge:*",
+                            "relationship:*",
+                            "notifications:*",
+                            "identity:*"),
                     Role.STAFF,
                     List.of(
                             "projects:project:read",

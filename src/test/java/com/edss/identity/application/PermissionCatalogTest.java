@@ -10,8 +10,18 @@ class PermissionCatalogTest {
     private final PermissionCatalog catalog = new PermissionCatalog();
 
     @Test
-    void adminHasWildcard() {
-        assertThat(catalog.permissionsFor(Role.ADMIN)).contains("admin:*");
+    void adminHasDomainWildcards() {
+        var perms = catalog.permissionsFor(Role.ADMIN);
+        assertThat(perms).contains("admin:*", "projects:*", "finance:*");
+    }
+
+    @Test
+    void adminOverrideIsNotSeeded() {
+        // admin:override is break-glass and must not be seeded to any role
+        // by default — governance flags any principal holding it.
+        for (Role role : Role.values()) {
+            assertThat(catalog.permissionsFor(role)).doesNotContain("admin:override");
+        }
     }
 
     @Test

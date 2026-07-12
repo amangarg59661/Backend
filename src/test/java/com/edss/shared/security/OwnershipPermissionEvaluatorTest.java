@@ -31,11 +31,21 @@ class OwnershipPermissionEvaluatorTest {
     }
 
     @Test
-    void adminWildcardGrantsEverything() {
+    void adminOverrideGrantsEverything() {
+        assertThat(
+                        evaluator.hasPermission(
+                                auth("admin:override"), null, "finance:invoice:create"))
+                .isTrue();
+    }
+
+    @Test
+    void adminScopeDoesNotGrantOtherDomains() {
+        // admin:* now covers only admin-scoped operations; mutating other
+        // domains requires the domain wildcard or the explicit override.
         assertThat(
                         evaluator.hasPermission(
                                 auth("admin:*"), null, "finance:invoice:create"))
-                .isTrue();
+                .isFalse();
     }
 
     @Test

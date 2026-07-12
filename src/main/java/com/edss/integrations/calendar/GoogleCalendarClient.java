@@ -181,18 +181,29 @@ public class GoogleCalendarClient {
         if (bearer != null) {
             builder.header("Authorization", "Bearer " + bearer);
         }
+        HttpResponse<String> res;
         try {
-            HttpResponse<String> res =
-                    http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (res.statusCode() >= 300) {
-                throw new IllegalStateException(
-                        "Google OAuth call failed [" + res.statusCode() + "]: " + res.body());
-            }
-            return objectMapper.readTree(res.body());
-        } catch (IllegalStateException ex) {
-            throw ex;
+            res = http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (Exception ex) {
-            throw new IllegalStateException("Google OAuth call threw", ex);
+            // Underlying I/O — log the class of failure without leaking the URL body.
+            log.warn("Google OAuth call I/O failed", ex);
+            throw new IllegalStateException("Google OAuth call failed (transport).");
+        }
+        if (res.statusCode() >= 300) {
+            // Never surface the response body via the exception chain — Google
+            // 4xx bodies can contain partial access / refresh tokens or the
+            // caller's own email, all of which then land in Sentry.
+            log.warn(
+                    "Google OAuth call failed status={} body_length={}",
+                    res.statusCode(),
+                    res.body() == null ? 0 : res.body().length());
+            throw new IllegalStateException(
+                    "Google OAuth call failed [status=" + res.statusCode() + "].");
+        }
+        try {
+            return objectMapper.readTree(res.body());
+        } catch (Exception ex) {
+            throw new IllegalStateException("Google OAuth response parse failed.");
         }
     }
 

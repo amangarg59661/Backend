@@ -21,6 +21,13 @@ jobs:
           java-version: '17'
           cache: maven
 
+      - name: Scan for committed secrets
+        # gitleaks fails the build on any hit; log-only on non-main branches
+        # would be reasonable later, but stay strict for now.
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # Docker is preinstalled on ubuntu-latest, so Testcontainers "just works".
       # We flip the docker.available flag so AuthControllerIT actually runs.
       - name: Verify + test

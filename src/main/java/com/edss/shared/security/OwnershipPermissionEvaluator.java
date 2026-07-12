@@ -61,18 +61,22 @@ public class OwnershipPermissionEvaluator implements PermissionEvaluator {
         return hasPermission(auth, targetId, permission);
     }
 
-    private static final java.util.Set<String> SUPER_SCOPES = java.util.Set.of("admin");
+    /**
+     * A single explicit grant that authorises any permission check. Reserved
+     * for genuine break-glass access — do not seed it broadly, and audit every
+     * hit that reaches it (log at WARN in the caller).
+     */
+    private static final String SUPER_OVERRIDE = "admin:override";
 
     private boolean matches(String granted, String required) {
         if (granted.equals(required)) {
             return true;
         }
+        if (SUPER_OVERRIDE.equals(granted)) {
+            return true;
+        }
         if (!granted.endsWith(":*")) {
             return false;
-        }
-        String scope = granted.substring(0, granted.length() - 2);
-        if (SUPER_SCOPES.contains(scope)) {
-            return true;
         }
         String prefix = granted.substring(0, granted.length() - 1);
         return required.startsWith(prefix);

@@ -1,0 +1,34 @@
+.git
+.gitignore
+.gitattributes
+.github
+.aeos
+.claude
+.impeccable
+
+# Local env — never build into a container
+.env
+.env.local
+.env.development
+.env.production
+
+# Build outputs
+target
+*.jar
+!target/*.jar
+
+# IDE
+.idea
+*.iml
+.vscode
+.settings
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local tooling
+scratchpad
+test-results
