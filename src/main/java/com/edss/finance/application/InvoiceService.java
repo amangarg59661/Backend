@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -56,6 +57,21 @@ public class InvoiceService {
         this.clock = clock;
     }
 
+    /**
+     * PF-10: split into three phases so the payment provider HTTP call is not
+     * held inside a DB transaction. Long provider latencies used to pin a
+     * Hikari connection for the duration of the outbound call.
+     *
+     * <ol>
+     *   <li>Phase 1 (@Transactional): persist the invoice row.</li>
+     *   <li>Phase 2 (no tx): call the provider outside any DB transaction.</li>
+     *   <li>Phase 3 (@Transactional): attach the provider ids + emit outbox row.</li>
+     * </ol>
+     *
+     * <p>Stripe uses invoice-number-keyed idempotency (A-26) so a retry after a
+     * crash between phases 2 and 3 lands on the same Checkout Session.</p>
+     */
+    @Transactional(propagation = Propagation.NEVER)
     public Invoice issue(NewInvoice spec, String successUrl, String cancelUrl) {
         PaymentGateway gateway = gatewaysById.get(spec.provider());
         if (gateway == null) {
@@ -64,6 +80,24 @@ public class InvoiceService {
                     "Provider " + spec.provider() + " is not enabled on this deployment.");
         }
 
+        Invoice invoice = persistInvoiceRow(spec);
+
+        PaymentGateway.CreatePaymentResult providerResult =
+                gateway.createPayment(
+                        new PaymentGateway.CreatePaymentRequest(
+                                invoice.getNumber(),
+                                spec.amountMinor(),
+                                spec.currency(),
+                                spec.description() == null ? invoice.getNumber() : spec.description(),
+                                spec.clientEmail(),
+                                successUrl,
+                                cancelUrl));
+
+        return attachPaymentAndEmit(invoice.getId(), spec, providerResult);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    protected Invoice persistInvoiceRow(NewInvoice spec) {
         Instant now = clock.instant();
         UUID invoiceId = UUID.randomUUID();
         Long seq = jdbc.queryForObject("SELECT nextval('finance.invoice_seq')", Long.class);
@@ -74,7 +108,6 @@ public class InvoiceService {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to serialise line items", ex);
         }
-
         Invoice invoice =
                 new Invoice(
                         invoiceId,
@@ -90,20 +123,21 @@ public class InvoiceService {
                         spec.dueAt(),
                         now);
         invoices.save(invoice);
+        return invoice;
+    }
 
-        PaymentGateway.CreatePaymentResult providerResult =
-                gateway.createPayment(
-                        new PaymentGateway.CreatePaymentRequest(
-                                number,
-                                spec.amountMinor(),
-                                spec.currency(),
-                                spec.description() == null ? number : spec.description(),
-                                spec.clientEmail(),
-                                successUrl,
-                                cancelUrl));
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    protected Invoice attachPaymentAndEmit(
+            UUID invoiceId, NewInvoice spec, PaymentGateway.CreatePaymentResult providerResult) {
+        Invoice invoice =
+                invoices.findById(invoiceId)
+                        .orElseThrow(
+                                () ->
+                                        new IllegalStateException(
+                                                "Invoice vanished mid-issue: " + invoiceId));
         invoice.attachProviderPayment(
                 providerResult.providerPaymentIntentId(), providerResult.paymentLink());
-
+        Instant now = clock.instant();
         outbox.append(
                 "finance",
                 new FinanceEvents.InvoiceIssued(
@@ -124,7 +158,7 @@ public class InvoiceService {
                         "provider", spec.provider(),
                         "payment_link",
                         providerResult.paymentLink() == null ? "" : providerResult.paymentLink()));
-        log.info("Issued invoice {} via {}", number, spec.provider());
+        log.info("Issued invoice {} via {}", invoice.getNumber(), spec.provider());
         return invoice;
     }
 
