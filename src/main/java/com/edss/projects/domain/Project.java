@@ -6,7 +6,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(schema = "projects", name = "projects")
@@ -47,6 +52,16 @@ public class Project {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    /**
+     * A-09: JSONB additive field surface. New optional fields from the
+     * evolving frontend land here first (with no schema migration) and get
+     * promoted to real columns once stable. Never used for identifiers or
+     * fields that require a UNIQUE / FK / CHECK.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "extensions", columnDefinition = "jsonb")
+    private Map<String, Object> extensions = new LinkedHashMap<>();
 
     protected Project() {}
 
@@ -128,6 +143,17 @@ public class Project {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Map<String, Object> getExtensions() {
+        return extensions == null ? Collections.emptyMap() : Collections.unmodifiableMap(extensions);
+    }
+
+    public void putExtension(String key, Object value) {
+        if (extensions == null) {
+            extensions = new LinkedHashMap<>();
+        }
+        extensions.put(key, value);
     }
 
     public void transitionTo(ProjectPhase target, Instant at) {

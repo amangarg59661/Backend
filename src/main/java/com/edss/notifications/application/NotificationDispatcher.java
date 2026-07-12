@@ -8,6 +8,7 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.modulith.events.ApplicationModuleListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
@@ -60,15 +61,30 @@ public class NotificationDispatcher {
             if (channel == null) {
                 continue;
             }
-            try {
-                channel.deliver(recipient.get(), envelope, copy);
-            } catch (RuntimeException ex) {
-                log.warn(
-                        "Channel {} failed for event {}",
-                        channelId,
-                        envelope.eventType(),
-                        ex);
-            }
+            deliverAsync(channel, recipient.get(), envelope, copy);
+        }
+    }
+
+    /**
+     * PF-03: hand each channel call to the notifications executor so a slow
+     * downstream (WhatsApp / Twilio 5s latency) does not block delivery on the
+     * other channels for the same event. Failures are contained per channel;
+     * a WhatsApp outage never stops email + in-app from firing.
+     */
+    @Async("notificationsExecutor")
+    protected void deliverAsync(
+            NotificationChannel channel,
+            NotificationChannel.NotificationRecipient recipient,
+            EventEnvelope envelope,
+            NotificationChannel.NotificationCopy copy) {
+        try {
+            channel.deliver(recipient, envelope, copy);
+        } catch (RuntimeException ex) {
+            log.warn(
+                    "Channel {} failed for event {}",
+                    channel.channelId(),
+                    envelope.eventType(),
+                    ex);
         }
     }
 }

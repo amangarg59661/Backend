@@ -5,7 +5,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(schema = "notifications", name = "notifications")
@@ -37,6 +42,10 @@ public class Notification {
 
     @Column(name = "event_id")
     private UUID eventId;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "extensions", columnDefinition = "jsonb")
+    private Map<String, Object> extensions = new LinkedHashMap<>();
 
     protected Notification() {}
 
@@ -90,6 +99,10 @@ public class Notification {
 
     public UUID getEventId() {
         return eventId;
+    }
+
+    public Map<String, Object> getExtensions() {
+        return extensions == null ? Collections.emptyMap() : Collections.unmodifiableMap(extensions);
     }
 
     public UUID getId() {

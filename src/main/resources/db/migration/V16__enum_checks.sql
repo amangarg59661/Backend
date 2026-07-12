@@ -79,14 +79,8 @@ BEGIN
             ));
     END IF;
 
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'ck_notifications_severity'
-    ) THEN
-        ALTER TABLE notifications.notifications
-            ADD CONSTRAINT ck_notifications_severity CHECK (severity IN (
-                'info', 'success', 'warning', 'error'
-            ));
-    END IF;
+    -- notifications.severity already has an inline CHECK from V1 covering
+    -- ('info', 'success', 'warning', 'critical'); nothing to add here.
 
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'ck_users_primary_role'

@@ -5,7 +5,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(schema = "knowledge", name = "files")
@@ -39,6 +44,10 @@ public class FileRecord {
 
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "extensions", columnDefinition = "jsonb")
+    private Map<String, Object> extensions = new LinkedHashMap<>();
 
     protected FileRecord() {}
 
@@ -109,5 +118,9 @@ public class FileRecord {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Map<String, Object> getExtensions() {
+        return extensions == null ? Collections.emptyMap() : Collections.unmodifiableMap(extensions);
     }
 }
