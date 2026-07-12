@@ -2,8 +2,10 @@ package com.edss.notifications.application;
 
 import com.edss.notifications.application.NotificationChannel.NotificationCopy;
 import com.edss.shared.events.EventEnvelope;
+import com.edss.shared.security.EphemeralSecrets;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,36 +18,49 @@ import org.springframework.stereotype.Component;
 public class NotificationCopyResolver {
 
     private interface Renderer {
-        NotificationCopy render(EventEnvelope envelope);
+        NotificationCopy render(EventEnvelope envelope, EphemeralSecrets secrets);
     }
 
     private static final Map<String, Renderer> RENDERERS = buildRenderers();
+
+    private final EphemeralSecrets ephemeralSecrets;
+
+    public NotificationCopyResolver(EphemeralSecrets ephemeralSecrets) {
+        this.ephemeralSecrets = ephemeralSecrets;
+    }
 
     private static Map<String, Renderer> buildRenderers() {
         java.util.Map<String, Renderer> renderers = new java.util.HashMap<>();
         renderers.put(
                 "identity.user_registered",
-                env -> info("Account created", "Your EDSS account is ready."));
+                (env, secrets) -> info("Account created", "Your EDSS account is ready."));
         renderers.put(
                 "relationship.inquiry_converted",
-                env -> {
+                (env, secrets) -> {
                     JsonNode p = (JsonNode) env.payload();
-                    String token = p.path("invite_token").asText();
+                    String handle = p.path("invite_token_handle").asText();
                     String name = p.path("name").asText("");
+                    Optional<String> token = secrets.pop(handle);
+                    if (token.isEmpty()) {
+                        return info(
+                                "Welcome to EDSS",
+                                "Your account is ready. Ask your account manager for a"
+                                        + " fresh invite link — the previous one expired.");
+                    }
                     return info(
                             "Welcome to EDSS — set your password",
                             "Hi "
                                     + name
                                     + ",\n\nSet your password using this token:\n\n"
-                                    + token
+                                    + token.get()
                                     + "\n\nThis invite expires in 7 days.");
                 });
         renderers.put(
                 "projects.project_created",
-                env -> info("Project created", "A new project has been created for you."));
+                (env, secrets) -> info("Project created", "A new project has been created for you."));
         renderers.put(
                 "projects.phase_transitioned",
-                env -> {
+                (env, secrets) -> {
                     JsonNode p = (JsonNode) env.payload();
                     return info(
                             "Project phase updated",
@@ -53,7 +68,7 @@ public class NotificationCopyResolver {
                 });
         renderers.put(
                 "projects.milestone_submitted",
-                env -> {
+                (env, secrets) -> {
                     JsonNode p = (JsonNode) env.payload();
                     return info(
                             "Milestone submitted",
@@ -61,7 +76,7 @@ public class NotificationCopyResolver {
                 });
         renderers.put(
                 "projects.milestone_reviewed",
-                env -> {
+                (env, secrets) -> {
                     JsonNode p = (JsonNode) env.payload();
                     return info(
                             "Milestone reviewed",
@@ -69,7 +84,7 @@ public class NotificationCopyResolver {
                 });
         renderers.put(
                 "projects.contract_uploaded",
-                env -> {
+                (env, secrets) -> {
                     JsonNode p = (JsonNode) env.payload();
                     return info(
                             "Contract uploaded",
@@ -77,19 +92,19 @@ public class NotificationCopyResolver {
                 });
         renderers.put(
                 "projects.onboarding_scheduled",
-                env ->
+                (env, secrets) ->
                         info(
                                 "Onboarding call scheduled",
                                 "Your onboarding call is on the calendar."));
         renderers.put(
                 "projects.maintenance_started",
-                env -> info("Maintenance started", "The maintenance window has begun."));
+                (env, secrets) -> info("Maintenance started", "The maintenance window has begun."));
         renderers.put(
                 "projects.project_closed",
-                env -> success("Project closed", "The project has been closed."));
+                (env, secrets) -> success("Project closed", "The project has been closed."));
         renderers.put(
                 "finance.invoice_issued",
-                env -> {
+                (env, secrets) -> {
                     JsonNode p = (JsonNode) env.payload();
                     return info(
                             "Invoice issued",
@@ -100,19 +115,19 @@ public class NotificationCopyResolver {
                 });
         renderers.put(
                 "finance.invoice_paid",
-                env -> success("Payment received", "We have received your payment. Thank you."));
+                (env, secrets) -> success("Payment received", "We have received your payment. Thank you."));
         renderers.put(
                 "finance.invoice_voided",
-                env -> warning("Invoice voided", "An invoice was voided."));
+                (env, secrets) -> warning("Invoice voided", "An invoice was voided."));
         renderers.put(
                 "commitments.ticket_opened",
-                env -> info("Ticket opened", "A new ticket has been opened."));
+                (env, secrets) -> info("Ticket opened", "A new ticket has been opened."));
         renderers.put(
                 "commitments.ticket_replied",
-                env -> info("Ticket reply", "There is a new reply on your ticket."));
+                (env, secrets) -> info("Ticket reply", "There is a new reply on your ticket."));
         renderers.put(
                 "commitments.ticket_status_changed",
-                env -> {
+                (env, secrets) -> {
                     JsonNode p = (JsonNode) env.payload();
                     return info(
                             "Ticket status changed",
@@ -120,13 +135,20 @@ public class NotificationCopyResolver {
                 });
         renderers.put(
                 "identity.password_reset_requested",
-                env -> {
+                (env, secrets) -> {
                     JsonNode p = (JsonNode) env.payload();
-                    String token = p.path("reset_token").asText();
+                    String handle = p.path("reset_token_handle").asText();
+                    Optional<String> token = secrets.pop(handle);
+                    if (token.isEmpty()) {
+                        return info(
+                                "Password reset requested",
+                                "Please request another reset link — the previous one"
+                                        + " could not be delivered.");
+                    }
                     return info(
                             "Reset your EDSS password",
                             "Use this token to reset your password:\n\n"
-                                    + token
+                                    + token.get()
                                     + "\n\nExpires in 30 minutes.");
                 });
         return Map.copyOf(renderers);
@@ -137,7 +159,7 @@ public class NotificationCopyResolver {
         if (renderer == null) {
             return info("Notification", envelope.eventType());
         }
-        return renderer.render(envelope);
+        return renderer.render(envelope, ephemeralSecrets);
     }
 
     private static NotificationCopy info(String title, String body) {

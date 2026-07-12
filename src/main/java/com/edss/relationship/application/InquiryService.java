@@ -10,6 +10,8 @@ import com.edss.shared.api.ApiException;
 import com.edss.shared.events.OutboxWriter;
 import com.edss.shared.ratelimit.RateLimitDecision;
 import com.edss.shared.ratelimit.RateLimiter;
+import com.edss.shared.security.EphemeralSecrets;
+import java.time.Duration;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,10 +32,13 @@ public class InquiryService {
     private static final Duration INQUIRY_WINDOW = Duration.ofHours(1);
     private static final int INQUIRY_LIMIT_PER_IP = 5;
 
+    private static final Duration INVITE_HANDLE_TTL = Duration.ofDays(7);
+
     private final InquiryRepository inquiries;
     private final IdentityUserProvisioning identityProvisioning;
     private final OutboxWriter outbox;
     private final RateLimiter rateLimiter;
+    private final EphemeralSecrets ephemeralSecrets;
     private final Clock clock;
 
     public InquiryService(
@@ -41,11 +46,13 @@ public class InquiryService {
             IdentityUserProvisioning identityProvisioning,
             OutboxWriter outbox,
             RateLimiter rateLimiter,
+            EphemeralSecrets ephemeralSecrets,
             Clock clock) {
         this.inquiries = inquiries;
         this.identityProvisioning = identityProvisioning;
         this.outbox = outbox;
         this.rateLimiter = rateLimiter;
+        this.ephemeralSecrets = ephemeralSecrets;
         this.clock = clock;
     }
 
@@ -114,6 +121,10 @@ public class InquiryService {
         }
         Instant now = clock.instant();
         row.markConverted(reviewerId, invite.userId(), now);
+        // Stash the invite token behind a short-TTL handle. The outbox row is
+        // opaque; the notifier pops the handle to obtain the plaintext exactly
+        // once when it sends the invite email.
+        String inviteHandle = ephemeralSecrets.stash(invite.inviteToken(), INVITE_HANDLE_TTL);
         outbox.append(
                 "relationship",
                 new RelationshipEvents.InquiryConverted(
@@ -123,13 +134,13 @@ public class InquiryService {
                         invite.userId(),
                         row.getEmail(),
                         row.getName(),
-                        invite.inviteToken()),
+                        inviteHandle),
                 Map.of(
                         "inquiry_id", row.getId(),
                         "user_id", invite.userId(),
                         "email", row.getEmail(),
                         "name", row.getName(),
-                        "invite_token", invite.inviteToken()));
+                        "invite_token_handle", inviteHandle));
         log.info("Converted inquiry {} → user {}", row.getId(), invite.userId());
         return row;
     }

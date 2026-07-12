@@ -8,6 +8,7 @@ import com.edss.identity.infrastructure.UserRepository;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
 import com.edss.shared.events.OutboxWriter;
+import com.edss.shared.security.EphemeralSecrets;
 import com.edss.shared.security.TokenHashing;
 import java.time.Clock;
 import java.time.Duration;
@@ -33,6 +34,7 @@ public class PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordHistoryService history;
     private final OutboxWriter outbox;
+    private final EphemeralSecrets ephemeralSecrets;
     private final Clock clock;
 
     public PasswordResetService(
@@ -41,12 +43,14 @@ public class PasswordResetService {
             PasswordEncoder passwordEncoder,
             PasswordHistoryService history,
             OutboxWriter outbox,
+            EphemeralSecrets ephemeralSecrets,
             Clock clock) {
         this.users = users;
         this.tokens = tokens;
         this.passwordEncoder = passwordEncoder;
         this.history = history;
         this.outbox = outbox;
+        this.ephemeralSecrets = ephemeralSecrets;
         this.clock = clock;
     }
 
@@ -65,9 +69,16 @@ public class PasswordResetService {
         Instant now = clock.instant();
         tokens.save(new PasswordResetToken(hash, user.getId(), now.plus(TOKEN_TTL)));
 
+        // Stash the plaintext under a short-TTL handle so the outbox row (which
+        // lives across DB backups, replicas, and event replay) never carries
+        // the secret. Notification listeners pop the handle to reveal the
+        // token exactly once — if TTL elapses first they send a "check your
+        // email" fallback prompting a fresh request.
+        String handle =
+                ephemeralSecrets.stash(plaintextToken, TOKEN_TTL);
         IdentityEvents.PasswordResetRequested event =
                 new IdentityEvents.PasswordResetRequested(
-                        UUID.randomUUID(), now, user.getId(), user.getEmail(), plaintextToken);
+                        UUID.randomUUID(), now, user.getId(), user.getEmail(), handle);
         outbox.append(
                 "identity",
                 event,
@@ -76,8 +87,8 @@ public class PasswordResetService {
                         user.getId(),
                         "email",
                         user.getEmail(),
-                        "reset_token",
-                        plaintextToken));
+                        "reset_token_handle",
+                        handle));
     }
 
     public void resetPassword(String plaintextToken, String newPassword) {
