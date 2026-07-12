@@ -96,6 +96,11 @@ class NotificationCopyResolverTest {
         }
 
         @Override
+        public void stashUnder(String handle, String plaintext, Duration ttl) {
+            store.put(handle, plaintext);
+        }
+
+        @Override
         public Optional<String> pop(String handle) {
             return Optional.ofNullable(store.remove(handle));
         }

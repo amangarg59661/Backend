@@ -49,7 +49,20 @@ public class WhatsappOtpService {
     }
 
     public boolean verify(UUID userId, String purpose, String code) {
-        return store.peek(userId, purpose).map(expected -> expected.equals(code)).orElse(false);
+        if (code == null) {
+            return false;
+        }
+        // S-11: constant-time compare. String#equals short-circuits on the
+        // first differing byte, leaking prefix knowledge via timing under a
+        // careful attacker (feasible on local LAN, not on public internet).
+        // Both codes are ASCII digits so byte length == char length.
+        return store.peek(userId, purpose)
+                .map(
+                        expected ->
+                                java.security.MessageDigest.isEqual(
+                                        expected.getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                                        code.getBytes(java.nio.charset.StandardCharsets.US_ASCII)))
+                .orElse(false);
     }
 
     public void invalidate(UUID userId, String purpose) {

@@ -25,6 +25,11 @@ public class InMemoryEphemeralSecrets implements EphemeralSecrets {
     }
 
     @Override
+    public void stashUnder(String handle, String plaintext, Duration ttl) {
+        entries.put(handle, new Entry(plaintext, Instant.now().plus(ttl)));
+    }
+
+    @Override
     public Optional<String> pop(String handle) {
         Entry entry = entries.remove(handle);
         if (entry == null || entry.expiresAt.isBefore(Instant.now())) {

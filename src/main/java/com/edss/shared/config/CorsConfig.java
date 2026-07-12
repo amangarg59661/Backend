@@ -26,8 +26,13 @@ class CorsConfig {
         cfg.setAllowCredentials(false);
         cfg.setMaxAge(3600L);
 
+        // S-24: scope CORS to /api/**. Webhooks are server-to-server (no
+        // browser origin), actuator + swagger are internal. Explicitly
+        // registering /api/** means those paths receive no Access-Control
+        // headers — a stray fetch() from a malicious origin can't even
+        // pre-flight, let alone hit them.
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", cfg);
+        source.registerCorsConfiguration("/api/**", cfg);
         return new CorsFilter(source);
     }
 }

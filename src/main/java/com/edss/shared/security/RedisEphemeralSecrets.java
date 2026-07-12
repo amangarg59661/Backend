@@ -33,6 +33,11 @@ public class RedisEphemeralSecrets implements EphemeralSecrets {
     }
 
     @Override
+    public void stashUnder(String handle, String plaintext, Duration ttl) {
+        redis.opsForValue().set(KEY_PREFIX + handle, plaintext, ttl);
+    }
+
+    @Override
     public Optional<String> pop(String handle) {
         return Optional.ofNullable(redis.opsForValue().getAndDelete(KEY_PREFIX + handle));
     }

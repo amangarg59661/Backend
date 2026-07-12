@@ -16,6 +16,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class JwtService {
 
+    /**
+     * S-18: fixed issuer + audience. Signing key rotation, if we ever ship
+     * multiple, would key off a {@code kid} header; today there is one key
+     * and one deployment, so a fixed pair is enough.
+     */
+    public static final String ISSUER = "edss-backend";
+    public static final String AUDIENCE = "edss-api";
+
     private final SecretKey key;
     private final SecurityProperties properties;
     private final Clock clock;
@@ -43,6 +51,10 @@ public class JwtService {
         String token =
                 Jwts.builder()
                         .subject(userId.toString())
+                        .issuer(ISSUER)
+                        .audience()
+                        .add(AUDIENCE)
+                        .and()
                         .claims(
                                 Map.of(
                                         "email", email,
@@ -60,7 +72,14 @@ public class JwtService {
     @SuppressWarnings("unchecked")
     public ParsedToken parse(String token) {
         try {
-            Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            Claims claims =
+                    Jwts.parser()
+                            .verifyWith(key)
+                            .requireIssuer(ISSUER)
+                            .requireAudience(AUDIENCE)
+                            .build()
+                            .parseSignedClaims(token)
+                            .getPayload();
             Object rawPerms = claims.get("permissions");
             java.util.List<String> perms =
                     rawPerms instanceof java.util.List<?> l

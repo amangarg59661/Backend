@@ -4,6 +4,7 @@ import com.edss.identity.domain.Session;
 import com.edss.identity.infrastructure.SessionRepository;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
+import com.edss.shared.security.SessionAllowlist;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -13,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional
-public class SessionService {
+public class SessionService implements SessionAllowlist {
 
     private final SessionRepository sessions;
     private final Clock clock;
@@ -57,6 +58,7 @@ public class SessionService {
         return touched;
     }
 
+    @Override
     @Transactional(readOnly = true)
     public boolean isActive(UUID sessionId) {
         return sessions.findById(sessionId).map(Session::isActive).orElse(false);

@@ -24,9 +24,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private static final String BEARER = "Bearer ";
 
     private final JwtService jwtService;
+    private final SessionAllowlist sessionAllowlist;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public JwtAuthFilter(JwtService jwtService, SessionAllowlist sessionAllowlist) {
         this.jwtService = jwtService;
+        this.sessionAllowlist = sessionAllowlist;
     }
 
     @Override
@@ -41,6 +43,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = header.substring(BEARER.length());
         try {
             JwtService.ParsedToken parsed = jwtService.parse(token);
+            // S-18 allowlist: even a signature-valid, unexpired JWT is refused
+            // once its session is revoked (logout, password change, admin
+            // action). Closes the 15-minute window between revocation and
+            // access-token exp.
+            if (!sessionAllowlist.isActive(parsed.sessionId())) {
+                log.debug("Rejected JWT for revoked session {}", parsed.sessionId());
+                chain.doFilter(request, response);
+                return;
+            }
             AuthenticatedUser principal =
                     new AuthenticatedUser(
                             parsed.userId(),

@@ -15,8 +15,16 @@ import java.util.Optional;
  */
 public interface EphemeralSecrets {
 
-    /** Stash a plaintext secret and return an opaque handle. */
+    /** Stash a plaintext secret and return an opaque server-generated handle. */
     String stash(String plaintext, Duration ttl);
+
+    /**
+     * Stash under a caller-chosen handle. Used when the handle must be
+     * externally recognisable — e.g. an OAuth {@code state} that the
+     * IdP will echo back on redirect. Overwrites any existing entry for
+     * the same handle.
+     */
+    void stashUnder(String handle, String plaintext, Duration ttl);
 
     /** Retrieve and delete the plaintext. Empty when handle unknown or expired. */
     Optional<String> pop(String handle);

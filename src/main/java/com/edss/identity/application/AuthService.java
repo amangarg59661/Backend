@@ -150,9 +150,12 @@ public class AuthService {
         } catch (IllegalArgumentException ex) {
             throw new ApiException(ApiErrorCode.VALIDATION_FAILED, "Unknown MFA method.");
         }
+        // S-14: peek first — a bad code must not burn the challenge, or a typo
+        // forces the user back through login. Only consume() on success. The
+        // per-challenge rate limit above ensures peek can't be brute-forced.
         UUID userId =
                 twoFactorChallenges
-                        .consume(challengeId)
+                        .peek(challengeId)
                         .orElseThrow(
                                 () ->
                                         new ApiException(
@@ -179,6 +182,7 @@ public class AuthService {
         if (!ok) {
             throw new ApiException(ApiErrorCode.INVALID_TOTP, "Incorrect code.");
         }
+        twoFactorChallenges.consume(challengeId);
         return issueFullSession(user, ipAddress, userAgent, rememberDevice);
     }
 

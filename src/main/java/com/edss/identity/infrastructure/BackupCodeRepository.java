@@ -10,7 +10,11 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface BackupCodeRepository extends JpaRepository<BackupCode, UUID> {
 
+    // Retained for callers that still key on the SHA-256 digest;
+    // BackupCodeService switched to BCrypt (S-12) and uses findByUserId.
     Optional<BackupCode> findByUserIdAndCodeHash(UUID userId, String codeHash);
+
+    List<BackupCode> findByUserId(UUID userId);
 
     List<BackupCode> findByUserIdAndUsedAtIsNull(UUID userId);
 
