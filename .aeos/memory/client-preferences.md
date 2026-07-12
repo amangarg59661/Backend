@@ -27,3 +27,14 @@ Governance objects. Every one is tracked and reported in the executive report at
 - Client prefers explicit, terse status updates outside of client-facing deliverables.
 - Client prefers full remediation over report-only. Commitment #2 above reflects that.
 - Client already ran `/simplify` before this audit — trivial reuse and cleanup fixes are already in `main`.
+- Caveman mode active throughout — client tolerates fragments in updates but wants normal prose in code / commits / security artefacts.
+
+## Engagement close (2026-07-12)
+
+- Wave 1 code-fix: **16 / 16 done**.
+- Wave 2 code-fix: **24 / 33 done**. Remainder is Wave 3 client-owned (compliance) or intentional design refactor (anemic domain, application-service layer).
+- 13 fix batches on `audit-remediation` — index in `risk-register.md` "Phase D — Remediation Status" and `executive-report.md`.
+- 44 unit tests + Modulith `verify()` + clean compile at close.
+- Client accepted Wave 3 compliance backlog as owner-of-record. DSAR / erasure / consent / breach SOP / DPA register / cross-border basis / grievance officer designation all handed back.
+- Client declined compliance artefact deliverables (subprocessors.md, breach runbook, SAQ-A template) — will own directly.
+- Executive report at `.aeos/memory/reviews/executive-report.md`.
