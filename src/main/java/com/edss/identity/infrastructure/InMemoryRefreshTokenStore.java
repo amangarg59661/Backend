@@ -6,7 +6,10 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,7 +21,26 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "edss.features.storage.redis-enabled", havingValue = "false", matchIfMissing = true)
 public class InMemoryRefreshTokenStore implements RefreshTokenStore {
 
+    private static final Logger log = LoggerFactory.getLogger(InMemoryRefreshTokenStore.class);
+
     private final ConcurrentHashMap<String, Stored> tokens = new ConcurrentHashMap<>();
+
+    /**
+     * Removes expired entries on a fixed cadence so the map does not grow
+     * unbounded on a long-lived JVM. Lazy expiry on {@link #consume(String)}
+     * only trims entries a user actually retries, so an idle refresh token
+     * would otherwise sit until process death. Sweep every 5 minutes.
+     */
+    @Scheduled(fixedDelayString = "300000")
+    void sweepExpired() {
+        Instant cutoff = Instant.now();
+        int before = tokens.size();
+        tokens.entrySet().removeIf(e -> e.getValue().expiresAt().isBefore(cutoff));
+        int removed = before - tokens.size();
+        if (removed > 0) {
+            log.debug("Swept {} expired refresh tokens ({} remain)", removed, tokens.size());
+        }
+    }
 
     @Override
     public IssuedRefresh issue(UUID userId, UUID sessionId, Duration ttl) {

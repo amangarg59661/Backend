@@ -5,7 +5,10 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -15,9 +18,21 @@ import org.springframework.stereotype.Component;
         matchIfMissing = true)
 public class InMemoryWhatsappOtpStore implements WhatsappOtpStore {
 
+    private static final Logger log = LoggerFactory.getLogger(InMemoryWhatsappOtpStore.class);
     private static final Duration TTL = Duration.ofMinutes(5);
 
     private final ConcurrentHashMap<String, Entry> otps = new ConcurrentHashMap<>();
+
+    @Scheduled(fixedDelayString = "60000")
+    void sweepExpired() {
+        Instant cutoff = Instant.now();
+        int before = otps.size();
+        otps.entrySet().removeIf(e -> e.getValue().expiresAt.isBefore(cutoff));
+        int removed = before - otps.size();
+        if (removed > 0) {
+            log.debug("Swept {} expired WhatsApp OTPs ({} remain)", removed, otps.size());
+        }
+    }
 
     @Override
     public void put(UUID userId, String purpose, String code) {

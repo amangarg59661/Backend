@@ -6,6 +6,18 @@
 # ============================================================================
 
 spring:
+  datasource:
+    hikari:
+      # PF-07: bump prod pool. Default 20 saturated under mixed OLTP + outbox
+      # relay + WebSocket-triggered notification writes. 30 gives headroom for
+      # the 6 relay pollers + read traffic. Idle sockets recycle at 10 min.
+      # Bump further via env if Grafana shows connection-wait time creeping.
+      maximum-pool-size: ${DB_POOL_MAX:30}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: 5000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 10000
   jpa:
     show-sql: false
   mail:
