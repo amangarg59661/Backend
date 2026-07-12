@@ -5,6 +5,7 @@ import com.edss.identity.infrastructure.SessionRepository;
 import com.edss.shared.api.ApiErrorCode;
 import com.edss.shared.api.ApiException;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,24 @@ public class SessionService {
             return;
         }
         session.revoke(userId, clock.instant());
+    }
+
+    /**
+     * Revokes every non-current session for a user (except {@code excludeSessionId}
+     * when non-null — used by "sign out other devices" flows). Password
+     * change / reset calls this without an exclude to force a full re-auth.
+     */
+    public int revokeAllForUser(UUID userId, UUID excludeSessionId) {
+        Instant now = clock.instant();
+        int touched = 0;
+        for (Session session : sessions.findByUserIdAndRevokedAtIsNullOrderByLastActiveAtDesc(userId)) {
+            if (excludeSessionId != null && session.getId().equals(excludeSessionId)) {
+                continue;
+            }
+            session.revoke(userId, now);
+            touched++;
+        }
+        return touched;
     }
 
     @Transactional(readOnly = true)

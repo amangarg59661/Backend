@@ -35,6 +35,8 @@ public class PasswordResetService {
     private final PasswordResetTokenRepository tokens;
     private final PasswordEncoder passwordEncoder;
     private final PasswordHistoryService history;
+    private final SessionService sessions;
+    private final TrustedDeviceService trustedDevices;
     private final OutboxWriter outbox;
     private final EphemeralSecrets ephemeralSecrets;
     private final RateLimiter rateLimiter;
@@ -45,6 +47,8 @@ public class PasswordResetService {
             PasswordResetTokenRepository tokens,
             PasswordEncoder passwordEncoder,
             PasswordHistoryService history,
+            SessionService sessions,
+            TrustedDeviceService trustedDevices,
             OutboxWriter outbox,
             EphemeralSecrets ephemeralSecrets,
             RateLimiter rateLimiter,
@@ -53,6 +57,8 @@ public class PasswordResetService {
         this.tokens = tokens;
         this.passwordEncoder = passwordEncoder;
         this.history = history;
+        this.sessions = sessions;
+        this.trustedDevices = trustedDevices;
         this.outbox = outbox;
         this.ephemeralSecrets = ephemeralSecrets;
         this.rateLimiter = rateLimiter;
@@ -144,6 +150,10 @@ public class PasswordResetService {
         user.changePasswordHash(newHash, now);
         history.recordNewHash(user.getId(), newHash);
         token.markUsed(now);
+        // Reset invalidates every session + trusted device the pre-reset
+        // holder could still be riding on.
+        sessions.revokeAllForUser(user.getId(), null);
+        trustedDevices.revokeAllForUser(user.getId());
         log.info("Password reset for userId={}", user.getId());
     }
 

@@ -73,5 +73,16 @@ public class TrustedDeviceService {
                 .ifPresent(d -> d.revoke(clock.instant()));
     }
 
+    /** Revokes every non-revoked trusted device for the user. Called on password change / reset. */
+    public int revokeAllForUser(UUID userId) {
+        Instant now = clock.instant();
+        int touched = 0;
+        for (TrustedDevice d : devices.findByUserIdAndRevokedAtIsNull(userId)) {
+            d.revoke(now);
+            touched++;
+        }
+        return touched;
+    }
+
     public record IssuedDevice(UUID id, String token, Instant expiresAt) {}
 }

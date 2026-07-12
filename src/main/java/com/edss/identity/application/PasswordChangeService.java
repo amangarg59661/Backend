@@ -24,16 +24,22 @@ public class PasswordChangeService {
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final PasswordHistoryService history;
+    private final SessionService sessions;
+    private final TrustedDeviceService trustedDevices;
     private final Clock clock;
 
     public PasswordChangeService(
             UserRepository users,
             PasswordEncoder passwordEncoder,
             PasswordHistoryService history,
+            SessionService sessions,
+            TrustedDeviceService trustedDevices,
             Clock clock) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.history = history;
+        this.sessions = sessions;
+        this.trustedDevices = trustedDevices;
         this.clock = clock;
     }
 
@@ -50,5 +56,10 @@ public class PasswordChangeService {
         String newHash = passwordEncoder.encode(newPassword);
         user.changePasswordHash(newHash, clock.instant());
         history.recordNewHash(userId, newHash);
+        // Kill everything an attacker with the OLD password could still be
+        // holding. Refresh-token invalidation follows via sessionService
+        // .isActive check on the next /auth/refresh.
+        sessions.revokeAllForUser(userId, null);
+        trustedDevices.revokeAllForUser(userId);
     }
 }

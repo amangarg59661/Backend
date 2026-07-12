@@ -46,11 +46,12 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     @Override
     public Optional<Stored> consume(String token) {
         String key = KEY_PREFIX + TokenHashing.sha256UrlBase64(token);
-        String raw = redis.opsForValue().get(key);
+        // Atomic GETDEL closes the race where two concurrent refreshes with
+        // the same stolen token both succeed. Requires Redis 6.2+.
+        String raw = redis.opsForValue().getAndDelete(key);
         if (raw == null) {
             return Optional.empty();
         }
-        redis.delete(key);
         try {
             return Optional.of(objectMapper.readValue(raw, Stored.class));
         } catch (JsonProcessingException e) {
