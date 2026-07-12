@@ -61,8 +61,19 @@ public class InAppChannel implements NotificationChannel {
                         copy.href(),
                         clock.instant(),
                         BIT,
-                        envelope.eventType());
-        notifications.save(row);
+                        envelope.eventType(),
+                        envelope.eventId());
+        try {
+            notifications.save(row);
+        } catch (org.springframework.dao.DataIntegrityViolationException dup) {
+            // Outbox replay for an already-delivered event. Idempotency
+            // contract: no additional row, no WebSocket push. Log at debug.
+            log.debug(
+                    "Duplicate in-app delivery skipped for user={} event_id={}",
+                    recipient.userId(),
+                    envelope.eventId());
+            return;
+        }
         try {
             messaging.convertAndSendToUser(
                     recipient.userId().toString(),

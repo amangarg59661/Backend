@@ -35,6 +35,9 @@ public class Notification {
     @Column(name = "event_type")
     private String eventType;
 
+    @Column(name = "event_id")
+    private UUID eventId;
+
     protected Notification() {}
 
     public Notification(
@@ -58,6 +61,20 @@ public class Notification {
             Instant createdAt,
             int channelMask,
             String eventType) {
+        this(id, userId, severity, title, body, href, createdAt, channelMask, eventType, null);
+    }
+
+    public Notification(
+            UUID id,
+            UUID userId,
+            String severity,
+            String title,
+            String body,
+            String href,
+            Instant createdAt,
+            int channelMask,
+            String eventType,
+            UUID eventId) {
         this.id = id;
         this.userId = userId;
         this.severity = severity;
@@ -68,6 +85,11 @@ public class Notification {
         this.createdAt = createdAt;
         this.channelMask = channelMask;
         this.eventType = eventType;
+        this.eventId = eventId;
+    }
+
+    public UUID getEventId() {
+        return eventId;
     }
 
     public UUID getId() {

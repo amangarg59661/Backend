@@ -34,6 +34,9 @@ CREATE INDEX ix_identity_backup_codes_user_active
     WHERE used_at IS NULL;
 
 -- Migrate existing single-row TOTP enrollments into the new table.
+-- ON CONFLICT keeps the migration idempotent on partial reruns — otherwise
+-- any pre-existing (user_id, 'totp') row aborts the whole migration and
+-- leaves V13 half-applied. A-05 fix from the audit remediation branch.
 INSERT INTO identity.mfa_methods
     (id, user_id, method_type, secret_encrypted, enabled, enrolled_at, created_at)
 SELECT
@@ -44,6 +47,7 @@ SELECT
     enabled,
     enrolled_at,
     created_at
-FROM identity.user_two_factor;
+FROM identity.user_two_factor
+ON CONFLICT (user_id, method_type) DO NOTHING;
 
 DROP TABLE identity.user_two_factor;

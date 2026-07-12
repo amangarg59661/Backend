@@ -11,11 +11,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Limit;
@@ -32,14 +33,16 @@ public class InvoiceService {
     private final Map<String, PaymentGateway> gatewaysById;
     private final OutboxWriter outbox;
     private final ObjectMapper objectMapper;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final Clock clock;
-    private final AtomicLong sequence = new AtomicLong(1);
+    private static final DateTimeFormatter YYYY = DateTimeFormatter.ofPattern("yyyy").withZone(ZoneOffset.UTC);
 
     public InvoiceService(
             InvoiceRepository invoices,
             List<PaymentGateway> gateways,
             OutboxWriter outbox,
             ObjectMapper objectMapper,
+            org.springframework.jdbc.core.JdbcTemplate jdbc,
             Clock clock) {
         this.invoices = invoices;
         this.gatewaysById =
@@ -49,6 +52,7 @@ public class InvoiceService {
                                         PaymentGateway::providerId, gw -> gw));
         this.outbox = outbox;
         this.objectMapper = objectMapper;
+        this.jdbc = jdbc;
         this.clock = clock;
     }
 
@@ -62,7 +66,8 @@ public class InvoiceService {
 
         Instant now = clock.instant();
         UUID invoiceId = UUID.randomUUID();
-        String number = "INV-" + Instant.now().getEpochSecond() + "-" + sequence.getAndIncrement();
+        Long seq = jdbc.queryForObject("SELECT nextval('finance.invoice_seq')", Long.class);
+        String number = "INV-" + YYYY.format(now) + "-" + String.format("%06d", seq);
         String lineItemsJson;
         try {
             lineItemsJson = objectMapper.writeValueAsString(spec.lineItems());
