@@ -78,6 +78,17 @@ public class InquiryService {
                         "inquiry_id", row.getId(),
                         "email", email,
                         "service", service == null ? "" : service));
+        // C-2: separate acknowledgment event so the notifications router
+        // can send a "thanks for reaching out" auto email to the submitter
+        // without also targeting the staff triage recipients.
+        outbox.append(
+                "relationship",
+                new RelationshipEvents.InquiryAcknowledged(
+                        UUID.randomUUID(), now, row.getId(), email, name == null ? "" : name),
+                Map.of(
+                        "inquiry_id", row.getId(),
+                        "email", email,
+                        "name", name == null ? "" : name));
         return row;
     }
 

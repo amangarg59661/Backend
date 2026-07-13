@@ -36,6 +36,7 @@ public class PermissionCatalog {
                             "knowledge:*",
                             "relationship:*",
                             "notifications:*",
+                            "careers:*",
                             "identity:*"),
                     Role.STAFF,
                     List.of(
@@ -49,7 +50,9 @@ public class PermissionCatalog {
                             "commitments:ticket:reply",
                             "knowledge:file:*",
                             "relationship:inquiry:*",
-                            "notifications:*"),
+                            "notifications:*",
+                            "careers:read",
+                            "careers:applications:read"),
                     Role.SUPPORT_AGENT,
                     List.of(
                             "commitments:ticket:*",

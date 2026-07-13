@@ -41,10 +41,20 @@ public class NotificationRecipientResolver {
                 }
             }
         }
-        if (userId == null) {
-            return Optional.empty();
+        if (userId != null) {
+            return identity.findUser(userId)
+                    .map(u -> new NotificationRecipient(u.id(), u.email(), u.name(), null));
         }
-        return identity.findUser(userId)
-                .map(u -> new NotificationRecipient(u.id(), u.email(), u.name(), null));
+        // C-2 fallback: anonymous recipients (public contact form + public
+        // job application) carry only email + name in the payload — they
+        // have no backend user account. Email channel can still fire; the
+        // in-app channel silently skips because userId is null.
+        JsonNode emailNode = payload.path("email");
+        if (!emailNode.isMissingNode() && !emailNode.asText().isBlank()) {
+            String email = emailNode.asText();
+            String name = payload.path("name").asText(null);
+            return Optional.of(new NotificationRecipient(null, email, name, null));
+        }
+        return Optional.empty();
     }
 }

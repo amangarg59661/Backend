@@ -133,6 +133,80 @@ public class NotificationCopyResolver {
                             "Ticket status changed",
                             "Status: " + p.path("to_status").asText());
                 });
+        // C-1 / C-2: careers module notifications + inquiry acknowledgment.
+        renderers.put(
+                "careers.posting_published",
+                (env, secrets) -> {
+                    JsonNode p = (JsonNode) env.payload();
+                    return info(
+                            "Job posting published",
+                            "\"" + p.path("title").asText() + "\" is now live on the careers page.");
+                });
+        renderers.put(
+                "careers.application_submitted",
+                (env, secrets) -> {
+                    JsonNode p = (JsonNode) env.payload();
+                    String name = p.path("name").asText("");
+                    String posting = p.path("posting_title").asText("");
+                    return info(
+                            "Thanks for applying to EDSS",
+                            "Hi "
+                                    + (name.isBlank() ? "there" : name)
+                                    + ",\n\nWe received your application for "
+                                    + posting
+                                    + ". Our team reviews every application personally; we "
+                                    + "will get back to you within the next two weeks.\n\n"
+                                    + "— The EDSS team");
+                });
+        renderers.put(
+                "careers.application_reviewed",
+                (env, secrets) -> {
+                    JsonNode p = (JsonNode) env.payload();
+                    String name = p.path("name").asText("");
+                    String posting = p.path("posting_title").asText("");
+                    String status = p.path("status").asText("");
+                    return switch (status) {
+                        case "contacted" -> info(
+                                "We would like to talk",
+                                "Hi "
+                                        + name
+                                        + ",\n\nThank you for applying for "
+                                        + posting
+                                        + ". Our team would like to move forward — please expect a "
+                                        + "personal note in the next few days.");
+                        case "hired" -> success(
+                                "Welcome to EDSS",
+                                "Hi "
+                                        + name
+                                        + ",\n\nWe are delighted to bring you on board for "
+                                        + posting
+                                        + ". Onboarding details will follow shortly.");
+                        case "rejected" -> info(
+                                "Application update",
+                                "Hi "
+                                        + name
+                                        + ",\n\nThank you again for applying for "
+                                        + posting
+                                        + ". We are not able to move forward at this time, but we "
+                                        + "appreciate the effort you put into your application.");
+                        default -> info(
+                                "Application update",
+                                "Your application for " + posting + " is now marked as: " + status + ".");
+                    };
+                });
+        renderers.put(
+                "relationship.inquiry_acknowledged",
+                (env, secrets) -> {
+                    JsonNode p = (JsonNode) env.payload();
+                    String name = p.path("name").asText("");
+                    return info(
+                            "Thanks for reaching out",
+                            "Hi "
+                                    + (name.isBlank() ? "there" : name)
+                                    + ",\n\nWe received your inquiry and it is now with our team. "
+                                    + "Someone will respond within one business day.\n\n"
+                                    + "— The EDSS team");
+                });
         renderers.put(
                 "identity.password_reset_requested",
                 (env, secrets) -> {

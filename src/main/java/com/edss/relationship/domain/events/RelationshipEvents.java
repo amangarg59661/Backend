@@ -33,6 +33,35 @@ public final class RelationshipEvents {
         }
     }
 
+    /**
+     * C-2: fired alongside InquirySubmitted specifically so the
+     * notifications module can route a "thanks for reaching out" email
+     * back to the submitter without conflating the staff-triage signal.
+     */
+    public record InquiryAcknowledged(
+            UUID eventId, Instant occurredAt, UUID inquiryId, String email, String name)
+            implements DomainEvent {
+        @Override
+        public String eventType() {
+            return "relationship.inquiry_acknowledged";
+        }
+
+        @Override
+        public int eventVersion() {
+            return 1;
+        }
+
+        @Override
+        public String aggregateType() {
+            return "inquiry";
+        }
+
+        @Override
+        public UUID aggregateId() {
+            return inquiryId;
+        }
+    }
+
     public record InquiryConverted(
             UUID eventId,
             Instant occurredAt,

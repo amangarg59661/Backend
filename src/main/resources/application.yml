@@ -33,7 +33,7 @@ spring:
     baseline-on-migrate: true
     locations: classpath:db/migration
     default-schema: shared
-    schemas: shared,identity,projects,finance,commitments,knowledge,notifications,organization,relationship,sales,communication,governance,integrations,ai
+    schemas: shared,identity,projects,finance,commitments,knowledge,notifications,organization,relationship,sales,communication,governance,integrations,ai,careers
 
   data:
     redis:
@@ -219,6 +219,19 @@ edss:
       commitments.ticket_opened: [email, in_app]
       commitments.ticket_replied: [email, in_app]
       commitments.ticket_status_changed: [in_app]
+      # C-1 careers module. application_submitted + application_reviewed
+      # target the anonymous applicant (email only — no backend user id
+      # so in-app is skipped by the resolver). posting_published is a
+      # staff signal; broadcast-to-staff fanout is a Wave-3 enhancement,
+      # today the payload has no user_id so dispatch is a no-op.
+      careers.application_submitted: [email]
+      careers.application_reviewed: [email]
+      careers.posting_published: [in_app]
+      # C-2: inquiry_acknowledged fires the auto thank-you back to the
+      # submitter (anonymous, email only). inquiry_submitted is the
+      # staff-triage signal — kept for future staff-broadcast wiring.
+      relationship.inquiry_submitted: [email, in_app]
+      relationship.inquiry_acknowledged: [email]
 
 sentry:
   enabled: ${SENTRY_ENABLED:false}

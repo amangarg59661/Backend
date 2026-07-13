@@ -43,7 +43,8 @@ public class RetentionJob {
                     "commitments",
                     "knowledge",
                     "notifications",
-                    "relationship");
+                    "relationship",
+                    "careers");
 
     private final JdbcTemplate jdbc;
 

@@ -51,6 +51,12 @@ public class InAppChannel implements NotificationChannel {
 
     @Override
     public void deliver(NotificationRecipient recipient, EventEnvelope envelope, NotificationCopy copy) {
+        // C-2: anonymous recipients (public inquiry / job application) have
+        // no user account, so an in-app row makes no sense. Email channel
+        // handles them; here we just skip.
+        if (recipient.userId() == null) {
+            return;
+        }
         Notification row =
                 new Notification(
                         UUID.randomUUID(),

@@ -30,7 +30,8 @@ public class OutboxHealthIndicator implements HealthIndicator {
                     "commitments",
                     "knowledge",
                     "notifications",
-                    "relationship");
+                    "relationship",
+                    "careers");
 
     private final JdbcTemplate jdbc;
 
