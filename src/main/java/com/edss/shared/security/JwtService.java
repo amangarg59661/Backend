@@ -29,10 +29,14 @@ public class JwtService {
     private final Clock clock;
 
     public JwtService(SecurityProperties properties, Clock clock) {
-        byte[] secret = properties.jwt().secret().getBytes(StandardCharsets.UTF_8);
+        String raw = properties.jwt().secret();
+        byte[] secret = raw == null ? new byte[0] : raw.getBytes(StandardCharsets.UTF_8);
         if (secret.length < 32) {
             throw new IllegalStateException(
-                    "edss.security.jwt.secret must be at least 32 bytes (256 bits).");
+                    "edss.security.jwt.secret must be at least 32 bytes (256 bits) — got "
+                            + secret.length
+                            + " byte(s). Set the JWT_SECRET env var to a 32+ character"
+                            + " random string; e.g. `openssl rand -base64 48`.");
         }
         this.key = Keys.hmacShaKeyFor(secret);
         this.properties = properties;
