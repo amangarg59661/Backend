@@ -44,7 +44,7 @@ FROM eclipse-temurin:17-jre-alpine AS runtime
 
 # Non-root user + writable temp dir for Spring's file uploads / Tomcat work dir.
 RUN addgroup -S edss && adduser -S -G edss edss && \
-    mkdir -p /app /tmp/edss && chown -R edss:edss /app /tmp/edss
+    mkdir -p /app /app/tmp && chown -R edss:edss /app /app/tmp
 
 WORKDIR /app
 
@@ -69,7 +69,7 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
                -XX:+UseSerialGC \
                -XX:+ExitOnOutOfMemoryError \
                -Djava.security.egd=file:/dev/./urandom \
-               -Djava.io.tmpdir=/tmp/edss"
+               -Djava.io.tmpdir=/app/tmp"
 
 # Spring Boot honours SERVER_PORT — 8080 is the .env default.
 ENV SERVER_PORT=8080
@@ -80,5 +80,9 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD wget -qO- http://localhost:${SERVER_PORT}/actuator/health/readiness || exit 1
 
-# exec form so SIGTERM reaches the JVM cleanly for Spring's graceful shutdown.
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher"]
+# `mkdir -p /app/tmp` at runtime because some platforms (Render, Fly.io)
+# remount /tmp and adjacent scratch dirs after image build, and even
+# though /app/tmp is owned by `edss` in the image, a runtime remount can
+# still wipe it.  The mkdir is idempotent and cheap, and the exec form
+# preserves SIGTERM delivery to the JVM for Spring's graceful shutdown.
+ENTRYPOINT ["sh", "-c", "mkdir -p /app/tmp && exec java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher"]
