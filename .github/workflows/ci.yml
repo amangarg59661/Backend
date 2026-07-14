@@ -68,12 +68,20 @@ jobs:
           project: self-backend
           path: '.'
           format: 'HTML'
-          # CVSS >= 7 (High) fails the job. Lower severities are surfaced in the
-          # report artifact for triage.
+          # `--nvdApiKey` is intentionally omitted.  The action injects
+          # `--noupdate` by default, so the CLI never contacts the NVD API
+          # at scan time and the key would be a no-op — but passing an
+          # empty value (when the `NVD_API_KEY` secret isn't configured
+          # on the repo) trips the argparser with
+          # "Missing argument for option: nvdApiKey".  Add
+          # `--nvdApiKey ${{ secrets.NVD_API_KEY }}` back if we ever
+          # remove `--noupdate` or run our own periodic NVD refresh job.
+          #
+          # CVSS >= 7 (High) fails the job. Lower severities are surfaced
+          # in the report artifact for triage.
           args: >
             --failOnCVSS 7
             --enableRetired
-            --nvdApiKey ${{ secrets.NVD_API_KEY }}
 
       - name: Upload dependency report
         if: always()
