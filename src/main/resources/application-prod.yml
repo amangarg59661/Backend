@@ -1,19 +1,28 @@
 # ============================================================================
-# Production profile — hard security, Resend SMTP, Supabase Postgres, Sentry on.
+# Production profile — hard security defaults, integrations enabled only via
+# feature flag + secret combination.
 #
-# Every required secret is env-var-only with no default. Missing values cause
-# a fail-fast startup error rather than silent misconfiguration.
+# Every integration in the codebase (Sentry / Resend / Redis / Stripe /
+# Razorpay / Twilio / Cal.com / Google / Supabase Storage / S3) is behind a
+# `@ConditionalOnProperty` bean gate.  The flag decides whether the client
+# instantiates; the secret is only consulted after that decision.  This file
+# therefore does not require any specific env var — deployments start with
+# every integration off, then the operator opts each one in from the platform
+# dashboard by setting the flag + the credentials together.
+#
+# The Render free plan (512 MB RAM, sleeps after 15 min idle) is the target
+# for the first push.  Migrating up to `starter` and beyond is a plan-only
+# change in render.yaml — no code impact.
 # ============================================================================
 
 spring:
   datasource:
     hikari:
-      # PF-07: bump prod pool. Default 20 saturated under mixed OLTP + outbox
-      # relay + WebSocket-triggered notification writes. 30 gives headroom for
-      # the 6 relay pollers + read traffic. Idle sockets recycle at 10 min.
-      # Bump further via env if Grafana shows connection-wait time creeping.
-      maximum-pool-size: ${DB_POOL_MAX:30}
-      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      # Free tier: keep the pool small.  30 sockets against Supabase's free
+      # 60-connection cap on the pooler is already tight once WebSockets +
+      # outbox pollers count in.  Bump to 30 on paid tiers via DB_POOL_MAX.
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
       connection-timeout: 5000
       idle-timeout: 600000
       max-lifetime: 1800000
@@ -21,12 +30,14 @@ spring:
   jpa:
     show-sql: false
   mail:
-    # Resend transactional SMTP. Username is literally "resend"; password is
-    # the API key from https://resend.com/api-keys.
+    # Resend transactional SMTP.  Username is literally "resend"; password
+    # is the API key from https://resend.com/api-keys.  Left blank by default
+    # so an email-off deployment does not crash on boot.  `notifications.email`
+    # + `RESEND_API_KEY` together decide whether messages actually send.
     host: ${MAIL_HOST:smtp.resend.com}
     port: ${MAIL_PORT:465}
     username: ${MAIL_USERNAME:resend}
-    password: ${RESEND_API_KEY}
+    password: ${RESEND_API_KEY:}
     properties:
       mail:
         smtp:
@@ -39,49 +50,55 @@ spring:
 edss:
   features:
     storage:
-      db-provider: supabase
-      # Enable Redis in prod — durable refresh tokens + cross-instance rate
-      # limits + session store shared across the fleet.
-      redis-enabled: ${REDIS_ENABLED:true}
+      db-provider: ${DB_PROVIDER:supabase}
+      # Cache off by default on prod — free tier has no Redis.  Flip to true
+      # once the plan is upgraded and REDIS_HOST / REDIS_PORT / REDIS_PASSWORD
+      # are wired (either a Render Key Value add-on or an external Valkey /
+      # Redis instance).
+      redis-enabled: ${REDIS_ENABLED:false}
+      cache-provider: ${CACHE_PROVIDER:redis}
     auth:
-      # Enforce full auth security on prod. All flags default to safest.
+      # Auth is not optional in prod.  Every flag stays on unless the operator
+      # explicitly disables it via env.
       two-factor: ${AUTH_TWO_FACTOR:true}
       rate-limit: true
       password-reset: true
       session-rotation: true
     observability:
-      sentry-enabled: true
+      sentry-enabled: ${SENTRY_ENABLED:false}
     payments:
-      stripe-enabled: ${PAYMENTS_STRIPE_ENABLED:true}
-      razorpay-enabled: ${PAYMENTS_RAZORPAY_ENABLED:true}
+      stripe-enabled: ${PAYMENTS_STRIPE_ENABLED:false}
+      razorpay-enabled: ${PAYMENTS_RAZORPAY_ENABLED:false}
       manual-enabled: ${PAYMENTS_MANUAL_ENABLED:true}
     notifications:
       channels:
-        email: true
-        in-app: true
-        whatsapp: ${NOTIFICATIONS_WHATSAPP:true}
+        email: ${NOTIFICATIONS_EMAIL:false}
+        in-app: ${NOTIFICATIONS_IN_APP:true}
+        whatsapp: ${NOTIFICATIONS_WHATSAPP:false}
         sms: ${NOTIFICATIONS_SMS:false}
     integrations:
       mail:
-        provider: resend
+        provider: ${MAIL_PROVIDER:resend}
       calendar:
-        provider: ${CALENDAR_PROVIDER:calcom}
-        google-sync: ${GOOGLE_CALENDAR_SYNC:true}
+        provider: ${CALENDAR_PROVIDER:manual}
+        google-sync: ${GOOGLE_CALENDAR_SYNC:false}
       messaging:
-        whatsapp-enabled: ${WHATSAPP_ENABLED:true}
+        whatsapp-enabled: ${WHATSAPP_ENABLED:false}
   security:
     cors:
-      # Required env var — no default. Deployment fails to start without it.
-      allowed-origins: ${CORS_ALLOWED_ORIGINS}
+      # Empty by default — no cross-origin traffic accepted until the operator
+      # supplies CORS_ALLOWED_ORIGINS.  Same-origin backend + reverse-proxy
+      # deployments (VPS, ECS behind ALB) do not need to set this at all.
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:}
     rate-limit:
-      # Tighter windows on prod. Bump via env for load tests.
       login-per-email-per-window: ${RATE_LIMIT_EMAIL:5}
       login-per-ip-per-window: ${RATE_LIMIT_IP:20}
 
 sentry:
-  enabled: true
-  # DSN required. No default. Boot fails without it.
-  dsn: ${SENTRY_DSN}
+  # Only the feature flag decides whether Sentry initializes.  DSN can be
+  # blank when disabled — the auto-configuration is a no-op in that case.
+  enabled: ${SENTRY_ENABLED:false}
+  dsn: ${SENTRY_DSN:}
   environment: ${SENTRY_ENVIRONMENT:production}
   traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:0.1}
 

@@ -72,7 +72,12 @@ management:
       show-details: when_authorized
       group:
         readiness:
-          include: db,redis,diskSpace,ping
+          # `redis` is intentionally out of the default set — the Redis health
+          # indicator opens a socket on every probe, so leaving it in causes
+          # Render's readiness gate to hang on deployments that run without a
+          # cache. Turn the cache on: set HEALTH_READINESS_INCLUDE to
+          # `db,redis,diskSpace,ping` and provision REDIS_* env vars.
+          include: ${HEALTH_READINESS_INCLUDE:db,diskSpace,ping}
   metrics:
     tags:
       application: self-backend
@@ -93,7 +98,16 @@ edss:
       # supabase (managed) or self-hosted (own Postgres). Documentation tag
       # surfaced in logs; the driver is always Postgres.
       db-provider: ${DB_PROVIDER:self-hosted}
+      # `redis-enabled` gates every RedisRefreshTokenStore, RedisRateLimiter,
+      # etc.  Same flag whether the backend is Redis or Valkey — Valkey is a
+      # BSD-licensed Redis fork with an identical wire protocol, so the
+      # Spring Data Redis client speaks both without a code change.  Point
+      # REDIS_HOST at whichever server is provisioned.
       redis-enabled: ${REDIS_ENABLED:false}
+      # Documentation tag surfaced in logs so operators can tell at a glance
+      # which cache backend is behind REDIS_HOST.  Values: redis | valkey.
+      # No behaviour change — flip it when you migrate the endpoint.
+      cache-provider: ${CACHE_PROVIDER:redis}
       outbox-relay: ${OUTBOX_RELAY:true}
       # supabase | s3. Selects which StorageClient bean is active.
       file-backend: ${FILE_BACKEND:supabase}

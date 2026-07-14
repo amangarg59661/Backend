@@ -1,40 +1,59 @@
 # ============================================================================
 # Render Blueprint — self-backend
 #
-# Applies via the Render dashboard:  New +  ->  Blueprint  ->  point at this
-# repo's main branch.  Render reads this file, creates the services, and pins
-# every env var listed under `envVars`.  Values marked `sync: false` must be
-# filled in via the dashboard on first apply and are never committed.
+# Deploys to Render's `free` web plan (512 MB RAM, sleeps after 15 min of
+# inactivity, cold-start ~30-60 s).  Everything integration-shaped is off by
+# default and turns on only when both a feature flag and the corresponding
+# secret are set from the Render dashboard.  Missing secrets on disabled
+# integrations do not crash the boot — every client bean is behind
+# `@ConditionalOnProperty`.
 #
-# The service builds directly from the repo Dockerfile — no separate registry
-# step required for Render.  The same Dockerfile also feeds the GHCR release
-# workflow, so a future migration to a VPS or AWS ECS is a registry pull, not
-# a rebuild.
+# The Redis / Valkey add-on is intentionally commented out because Render's
+# Key Value free tier is 25 MB with connection limits and cannot serve the
+# refresh-token store + rate-limit ledger past a small pilot.  In-memory
+# stores take over transparently while `REDIS_ENABLED=false`.  Move up to a
+# paid plan, uncomment the `self-backend-redis` block, set `REDIS_ENABLED`
+# to true, and pick `CACHE_PROVIDER=redis` or `valkey` depending on the
+# backend — the Spring Data Redis client speaks both.
+#
+# The service builds from the repo Dockerfile — no separate registry step is
+# needed for Render.  The same Dockerfile also feeds the GHCR release
+# workflow so a later migration to a VPS or AWS ECS is a `docker pull`.
 # ============================================================================
 
 services:
   - type: web
     name: self-backend
     runtime: docker
-    plan: starter
+    plan: free
     region: oregon
     branch: main
     dockerfilePath: ./Dockerfile
     dockerContext: .
     autoDeploy: true
 
-    # Actuator's readiness probe is what Render's health check hits.  Fails
-    # closed on missing DB / Redis at boot.
+    # Actuator's readiness probe is what Render's health check hits.  It
+    # excludes Redis by default (see HEALTH_READINESS_INCLUDE below) so a
+    # Redis-off deployment can still become ready.
     healthCheckPath: /actuator/health/readiness
 
     envVars:
-      # --- Runtime ---
+      # ------------------------------------------------------------------
+      # Runtime
+      # ------------------------------------------------------------------
       - key: SPRING_PROFILES_ACTIVE
         value: prod
       - key: SERVER_PORT
         value: "8080"
 
-      # --- Database (Supabase, external) ---
+      # Readiness group.  Add `redis` to this comma-list once REDIS_ENABLED
+      # is true — otherwise the socket-open probe hangs the gate.
+      - key: HEALTH_READINESS_INCLUDE
+        value: db,diskSpace,ping
+
+      # ------------------------------------------------------------------
+      # Database — Supabase (external, always required)
+      # ------------------------------------------------------------------
       - key: DB_PROVIDER
         value: supabase
       - key: DB_URL
@@ -43,27 +62,38 @@ services:
         sync: false
       - key: DB_PASSWORD
         sync: false
+      # Free-tier pool caps at 10 to stay well inside Supabase's shared
+      # pooler limit.  Bump on paid tiers.
+      - key: DB_POOL_MAX
+        value: "10"
 
-      # --- Redis (Render-managed instance below) ---
+      # ------------------------------------------------------------------
+      # Cache — off by default on the free plan.  In-memory stores take over
+      # while REDIS_ENABLED=false.  When turning on:
+      #   1. Provision a Redis or Valkey instance (Render KV, Upstash,
+      #      ElastiCache, or self-hosted).
+      #   2. Set REDIS_ENABLED=true, REDIS_HOST, REDIS_PORT, REDIS_PASSWORD.
+      #   3. Pick CACHE_PROVIDER=redis or CACHE_PROVIDER=valkey — it is a
+      #      documentation tag only; the same client library speaks both.
+      #   4. Change HEALTH_READINESS_INCLUDE to include `redis`.
+      # ------------------------------------------------------------------
       - key: REDIS_ENABLED
-        value: "true"
+        value: "false"
+      - key: CACHE_PROVIDER
+        value: redis
       - key: REDIS_HOST
-        fromService:
-          type: redis
-          name: self-backend-redis
-          property: host
+        value: ""
       - key: REDIS_PORT
-        fromService:
-          type: redis
-          name: self-backend-redis
-          property: port
+        value: "6379"
       - key: REDIS_PASSWORD
-        fromService:
-          type: redis
-          name: self-backend-redis
-          property: password
+        sync: false
 
-      # --- Mail (Resend) ---
+      # ------------------------------------------------------------------
+      # Mail — Resend.  Delivery only fires when NOTIFICATIONS_EMAIL=true
+      # AND RESEND_API_KEY is set.  Free tier launches with mail off.
+      # ------------------------------------------------------------------
+      - key: NOTIFICATIONS_EMAIL
+        value: "false"
       - key: MAIL_PROVIDER
         value: resend
       - key: MAIL_HOST
@@ -77,9 +107,12 @@ services:
       - key: MAIL_FROM
         sync: false
 
-      # --- Sentry ---
+      # ------------------------------------------------------------------
+      # Sentry — off by default.  Set both SENTRY_ENABLED=true and
+      # SENTRY_DSN together.
+      # ------------------------------------------------------------------
       - key: SENTRY_ENABLED
-        value: "true"
+        value: "false"
       - key: SENTRY_DSN
         sync: false
       - key: SENTRY_ENVIRONMENT
@@ -87,25 +120,36 @@ services:
       - key: SENTRY_TRACES_SAMPLE_RATE
         value: "0.1"
 
-      # --- JWT ---
+      # ------------------------------------------------------------------
+      # JWT + secret encryption — always required, both are generated on
+      # first deploy so they never leave Render.  Rotating either forces
+      # every user to log in again and every stored TOTP seed / trusted
+      # device to re-enroll.
+      # ------------------------------------------------------------------
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_ACCESS_TTL
         value: PT15M
       - key: JWT_REFRESH_TTL
         value: P30D
-
-      # --- Secret encryption ---
       - key: SECRET_ENCRYPTION_KEY
         generateValue: true
 
-      # --- Auth extras ---
+      # ------------------------------------------------------------------
+      # Auth extras — stay on by default (safe defaults).
+      # ------------------------------------------------------------------
+      - key: AUTH_TWO_FACTOR
+        value: "true"
       - key: AUTH_TWO_FACTOR_ENROLLMENT
         value: "true"
       - key: AUTH_REMEMBER_DEVICE_DAYS
         value: "30"
 
-      # --- File storage (Supabase) ---
+      # ------------------------------------------------------------------
+      # File storage — Supabase Storage.  Bean stays dormant until
+      # FILE_BACKEND=supabase (already default) AND SUPABASE_URL /
+      # SUPABASE_SERVICE_ROLE_KEY are provided.
+      # ------------------------------------------------------------------
       - key: FILE_BACKEND
         value: supabase
       - key: SUPABASE_URL
@@ -115,41 +159,49 @@ services:
       - key: SUPABASE_BUCKET_PREFIX
         value: edss-prod
 
-      # --- Payments ---
+      # ------------------------------------------------------------------
+      # Payments — all off.  Turning any provider on requires its flag +
+      # its credentials, both set here.  Manual gateway stays on since it
+      # needs no credentials and covers offline flows.
+      # ------------------------------------------------------------------
       - key: PAYMENTS_STRIPE_ENABLED
-        value: "true"
-      - key: PAYMENTS_RAZORPAY_ENABLED
-        value: "true"
-      - key: PAYMENTS_MANUAL_ENABLED
-        value: "true"
+        value: "false"
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      - key: PAYMENTS_RAZORPAY_ENABLED
+        value: "false"
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
-
-      # --- Notifications ---
-      - key: NOTIFICATIONS_EMAIL
+      - key: PAYMENTS_MANUAL_ENABLED
         value: "true"
+
+      # ------------------------------------------------------------------
+      # Notifications — email + whatsapp + sms all off by default.
+      # In-app stays on (no external credentials involved).
+      # ------------------------------------------------------------------
       - key: NOTIFICATIONS_IN_APP
         value: "true"
       - key: NOTIFICATIONS_WHATSAPP
-        value: "true"
+        value: "false"
       - key: NOTIFICATIONS_SMS
         value: "false"
 
-      # --- Calendar + messaging ---
+      # ------------------------------------------------------------------
+      # Calendar + messaging + Google OAuth — all off.  Each provider's
+      # flag + credentials must be set together.
+      # ------------------------------------------------------------------
       - key: CALENDAR_PROVIDER
-        value: calcom
+        value: manual
       - key: GOOGLE_CALENDAR_SYNC
-        value: "true"
+        value: "false"
       - key: WHATSAPP_ENABLED
-        value: "true"
+        value: "false"
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN
@@ -167,19 +219,30 @@ services:
       - key: GOOGLE_OAUTH_REDIRECT_URI
         sync: false
 
-      # --- CORS (required) ---
+      # ------------------------------------------------------------------
+      # CORS — no default.  Set the comma-separated frontend origins in
+      # the dashboard once they're known.  Empty is safe — same-origin
+      # traffic still works, cross-origin fetches are rejected.
+      # ------------------------------------------------------------------
       - key: CORS_ALLOWED_ORIGINS
         sync: false
 
-      # --- Rate limit ---
+      # ------------------------------------------------------------------
+      # Rate limit
+      # ------------------------------------------------------------------
       - key: RATE_LIMIT_EMAIL
         value: "5"
       - key: RATE_LIMIT_IP
         value: "20"
 
-  - type: redis
-    name: self-backend-redis
-    plan: starter
-    region: oregon
-    maxmemoryPolicy: noeviction
-    ipAllowList: []
+# ---- Optional cache add-on ------------------------------------------------
+# Uncomment when the web plan is upgraded past `free` and REDIS_ENABLED is
+# flipped to true.  Also swap the `fromService` refs into the REDIS_HOST /
+# REDIS_PORT / REDIS_PASSWORD blocks above to auto-wire the endpoint.
+#
+#  - type: redis
+#    name: self-backend-redis
+#    plan: starter
+#    region: oregon
+#    maxmemoryPolicy: noeviction
+#    ipAllowList: []

@@ -56,10 +56,17 @@ COPY --from=builder --chown=edss:edss /workspace/target/extracted/application/  
 
 USER edss
 
-# JVM tuning.  Container-aware GC + reasonable defaults for a 512Mi–2Gi
-# footprint.  Override with `JAVA_TOOL_OPTIONS` at runtime for load tests.
+# JVM tuning.  MaxRAMPercentage=60 leaves ~200 MB for the OS + zombie
+# reaper on Render's 512 MB free plan (60% of 512 = ~307 MB heap).  Bump
+# it (JAVA_TOOL_OPTIONS at runtime, e.g. `-XX:MaxRAMPercentage=75`) as
+# soon as the service moves to the 2 GB starter plan or higher.
+# ExitOnOutOfMemoryError so Render sees the container die and restarts
+# instead of running degraded.  SerialGC keeps the resident-set small
+# for the free plan — G1 is faster on paid tiers, override with
+# JAVA_TOOL_OPTIONS `-XX:+UseG1GC` when the plan is upgraded.
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
-               -XX:MaxRAMPercentage=75 \
+               -XX:MaxRAMPercentage=60 \
+               -XX:+UseSerialGC \
                -XX:+ExitOnOutOfMemoryError \
                -Djava.security.egd=file:/dev/./urandom \
                -Djava.io.tmpdir=/tmp/edss"
