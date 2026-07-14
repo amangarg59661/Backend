@@ -56,12 +56,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
+      # No setup-java here.  Dependency-Check_Action runs inside its own
+      # container which already ships a JDK.  Installing one on the host
+      # only sets a JAVA_HOME env var that is passed to (but invalid
+      # inside) the container, so the container's `java` invocation fails
+      # with "JAVA_HOME is not defined correctly".
 
       - name: OWASP Dependency-Check
         uses: dependency-check/Dependency-Check_Action@main
@@ -154,10 +153,15 @@ jobs:
       # already runs the full CVE audit in the `dependency-check` job so
       # dropping vuln here has no coverage cost.
       #
-      # Secret + config scanners keep running because they read local
-      # files only — no upstream API.
-      - name: Run Trivy fs scan (secret + misconfig only)
+      # `TRIVY_OFFLINE_SCAN=true` is belt-and-braces: even the misconfig
+      # scanner probes pom.xml metadata online, and offline mode disables
+      # every network lookup so the run stays fully local.  Secret +
+      # misconfig scanners still find everything they need in the working
+      # tree.
+      - name: Run Trivy fs scan (secret + misconfig only, offline)
         uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_OFFLINE_SCAN: "true"
         with:
           scan-type: 'fs'
           scan-ref: '.'

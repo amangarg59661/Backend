@@ -27,6 +27,9 @@ target/
 .env.local
 .env.production
 .env.development
+.env.production.example
+.env.development.example
+.env.*
 *.pem
 *.key
 
@@ -37,3 +40,6 @@ Thumbs.db
 ### Local tooling caches ###
 .claude/settings.local.json
 .impeccable/
+
+
+*.md

@@ -1,0 +1,26 @@
+# Gitleaks configuration for self-backend.
+#
+# Extends the default rule set (kept comprehensive — every default detector
+# still runs) and adds a scoped allowlist for known-safe test vectors that
+# gitleaks would otherwise flag as `generic-api-key` due to their entropy.
+
+title = "self-backend gitleaks config"
+
+[extend]
+useDefault = true
+
+# ---------------------------------------------------------------------------
+# Allowlist — test fixtures only.  These are never used as production secrets
+# and never referenced outside the test source they live in.
+# ---------------------------------------------------------------------------
+[allowlist]
+description = "Known-safe test fixtures. Not production secrets."
+paths = [
+  # SecretCipherTest uses two hardcoded 32-byte base64 keys to verify AES-GCM
+  # roundtrip + key-rotation logic.  The bytes decode to the plaintext
+  # strings `abcdefghijklmnopqrstuvwxyz123456` and
+  # `0123456789abcdefghijklmnopqrstuv` — pure test vectors.  Both are
+  # committed to the repo intentionally; the real production key is loaded
+  # at boot from SECRET_ENCRYPTION_KEY env var.
+  '''src/test/java/com/edss/shared/security/SecretCipherTest\.java''',
+]
