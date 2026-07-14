@@ -1,0 +1,85 @@
+name: Release
+
+# Build + push the production image to GHCR on every push to main.
+# Render deploys from the repo Dockerfile directly, so this workflow is
+# not on Render's critical path — its purpose is to publish a durable,
+# version-tagged image that:
+#   * a future VPS / AWS ECS host can pull without rebuilding, and
+#   * gives Render a warm image cache if we later switch it to image-based
+#     deploys.
+#
+# Runs only after CI on the same commit succeeds.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: build and push image
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Check out the SHA that CI actually ran against so the released
+          # image matches what was tested.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags
+        id: tags
+        run: |
+          # Lowercase the owner because GHCR requires it.  A repo owner like
+          # "AmanGargARCIT" produces a rejected tag otherwise.
+          owner="${{ github.repository_owner }}"
+          owner_lc="${owner,,}"
+          sha="${{ github.event.workflow_run.head_sha }}"
+          short="${sha:0:12}"
+
+          image="ghcr.io/${owner_lc}/self-backend"
+
+          {
+            echo "image=${image}"
+            echo "tags<<EOF"
+            echo "${image}:${sha}"
+            echo "${image}:${short}"
+            echo "${image}:main"
+            echo "${image}:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.title=self-backend
+            org.opencontainers.image.description=EDSS modular monolith backend
+            org.opencontainers.image.licenses=UNLICENSED
