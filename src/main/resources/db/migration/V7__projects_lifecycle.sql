@@ -114,4 +114,9 @@ CREATE TABLE projects.onboarding_calls (
 -- ----------------------------------------------------------------------------
 -- Outbox mirror for the projects schema.
 -- ----------------------------------------------------------------------------
-CREATE TABLE projects.outbox (LIKE identity.outbox INCLUDING ALL);
+-- projects.outbox is also created in V1__init_schema.sql alongside the
+-- other per-module outbox mirrors.  Kept here as IF NOT EXISTS so the
+-- statement is a no-op on any database that already ran V1 cleanly and
+-- still succeeds on a hypothetical database that skipped V1's outbox
+-- block.  Same treatment applies to V8 (finance) and V9 (knowledge).
+CREATE TABLE IF NOT EXISTS projects.outbox (LIKE identity.outbox INCLUDING ALL);

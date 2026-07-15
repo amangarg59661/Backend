@@ -45,5 +45,6 @@ CREATE TABLE finance.payment_webhook_events (
 CREATE INDEX ix_finance_payment_webhooks_status_received
     ON finance.payment_webhook_events (status, received_at DESC);
 
--- Finance outbox mirrored from identity.outbox.
-CREATE TABLE finance.outbox (LIKE identity.outbox INCLUDING ALL);
+-- Finance outbox mirrored from identity.outbox.  Already created in V1;
+-- IF NOT EXISTS keeps this migration idempotent on fresh databases.
+CREATE TABLE IF NOT EXISTS finance.outbox (LIKE identity.outbox INCLUDING ALL);

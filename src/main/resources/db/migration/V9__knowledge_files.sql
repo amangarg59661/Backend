@@ -43,4 +43,6 @@ CREATE TABLE knowledge.file_uploads (
 CREATE INDEX ix_knowledge_file_uploads_owner
     ON knowledge.file_uploads (owner_user_id, created_at DESC);
 
-CREATE TABLE knowledge.outbox (LIKE identity.outbox INCLUDING ALL);
+-- knowledge.outbox is already created in V1; keep this idempotent for
+-- fresh databases that run the full V1-V17 chain.
+CREATE TABLE IF NOT EXISTS knowledge.outbox (LIKE identity.outbox INCLUDING ALL);
