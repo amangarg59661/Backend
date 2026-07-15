@@ -25,6 +25,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # Every app entity carries an explicit `@Table(schema = "…")`, but
+        # Modulith's `JpaEventPublication` (from spring-modulith-events-jpa)
+        # does not, so its schema lookup falls back to this default.  Pin it
+        # to `shared` so the table Modulith looks for is the one V21 creates.
+        default_schema: shared
         jdbc:
           time_zone: UTC
 
